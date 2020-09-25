@@ -1,0 +1,7 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource prefix="icons">
+	<file alias="add.png">RESOURCES/add.png</file>
+	<file alias="edit.png">RESOURCES/edit.png</file>
+	<file alias="remove.png">RESOURCES/remove.png</file>
+</qresource>
+</RCC>
