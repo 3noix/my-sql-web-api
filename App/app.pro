@@ -12,7 +12,7 @@ CONFIG += c++17
 DESTDIR = $$MODE
 OBJECTS_DIR = $$MODE/objects
 MOC_DIR = $$MODE/moc
-QT += widgets sql
+QT += widgets
 
 
 HEADERS +=  CODE/MainWindow.h \
@@ -23,8 +23,7 @@ HEADERS +=  CODE/MainWindow.h \
 SOURCES +=  CODE/main.cpp \
 			CODE/MainWindow.cpp \
 			CODE/EntryDialog.cpp \
-			CODE/EntryTableModel.cpp \
-			CODE/SqlConnection.cpp
+			CODE/EntryTableModel.cpp
 
 
 RESOURCES += resources.qrc
