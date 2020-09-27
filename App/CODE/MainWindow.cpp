@@ -4,24 +4,32 @@
 
 #include <QAction>
 #include <QGridLayout>
-#include <QLabel>
 #include <QToolButton>
 #include <QTableView>
 #include <QHeaderView>
 #include <QTimer>
-
-#include <QSqlQuery>
-#include <QSqlError>
+#include <QEventLoop>
 #include <QMessageBox>
+
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+
+const QJsonDocument::JsonFormat format = QJsonDocument::Compact;
 
 
 ///////////////////////////////////////////////////////////////////////////////
 //  CONSTRUCTEUR
+//  CONNECT TO DATABASE API
+//  IS CONNECTED
 //  CREATE ACTIONS
 //  SETUP WIDGET
 //
-//  GET ENTRIES
-//  SLOT REFRESH
+//  SLOT MESSAGE RECEIVED
+//  CHECK MESSAGE TYPE
+//  IS ENTRY
+//  TO ENTRY
+//
 //  SLOT ADD
 //  SLOT EDIT
 //  SLOT REMOVE
@@ -35,19 +43,36 @@ MainWindow::MainWindow(QWidget *parent) : QWidget{parent}
 	this->setupWidget();
 	this->resize(700,500);
 	
-	m_nbSecsRefresh = 5;
-	m_refreshTimer = new QTimer{this};
-	m_refreshTimer->setInterval(1000*m_nbSecsRefresh);
+	QObject::connect(actionAdd,    SIGNAL(triggered()), this, SLOT(slotAdd()));
+	QObject::connect(actionEdit,   SIGNAL(triggered()), this, SLOT(slotEdit()));
+	QObject::connect(actionRemove, SIGNAL(triggered()), this, SLOT(slotRemove()));
+	QObject::connect(&m_webSocket, SIGNAL(textMessageReceived(QString)), this, SLOT(slotMessageReceived(QString)));
+}
 
-	QObject::connect(actionAdd,    &QAction::triggered, this, &MainWindow::slotAdd);
-	QObject::connect(actionEdit,   &QAction::triggered, this, &MainWindow::slotEdit);
-	QObject::connect(actionRemove, &QAction::triggered, this, &MainWindow::slotRemove);
-	QObject::connect(m_refreshTimer, &QTimer::timeout,  this, &MainWindow::slotRefresh);
-	
-	m_lastModif = QDateTime::currentDateTime();
-	m_refreshTimer->start();
-	m_bFirstTime = true;
-	this->slotRefresh();
+// CONNECT TO DATABASE API ////////////////////////////////////////////////////
+bool MainWindow::connectToDatabaseApi()
+{
+	QEventLoop loop;
+	QObject::connect(&m_webSocket, SIGNAL(connected()), &loop, SLOT(quit()));
+	QObject::connect(&m_webSocket, SIGNAL(error(QAbstractSocket::SocketError)), &loop, SLOT(quit()));
+	m_webSocket.open(QUrl{"ws://localhost:1234"});
+	loop.exec();
+
+	bool bConnected = (m_webSocket.isValid());
+	if (bConnected)
+	{
+		actionAdd->setEnabled(true);
+		actionEdit->setEnabled(true);
+		actionRemove->setEnabled(true);
+	}
+
+	return bConnected;
+}
+
+// IS CONNECTED ///////////////////////////////////////////////////////////////
+bool MainWindow::isConnected() const
+{
+	return m_webSocket.isValid();
 }
 
 // CREATE ACTIONS /////////////////////////////////////////////////////////////
@@ -55,12 +80,15 @@ void MainWindow::createActions()
 {
 	actionAdd = new QAction{"Add",this};
 	actionAdd->setIcon(QIcon{":/icons/add.png"});
+	actionAdd->setEnabled(false);
 
 	actionEdit = new QAction{"Edit",this};
 	actionEdit->setIcon(QIcon{":/icons/edit.png"});
+	actionEdit->setEnabled(false);
 
 	actionRemove = new QAction{"Remove",this};
 	actionRemove->setIcon(QIcon{":/icons/remove.png"});
+	actionRemove->setEnabled(false);
 }
 
 // SETUP WIDGET ///////////////////////////////////////////////////////////////
@@ -68,8 +96,6 @@ void MainWindow::setupWidget()
 {
 	layout = new QGridLayout{this};
 	this->setLayout(layout);
-
-	labelLastRefresh = new QLabel{this};
 
 	buttonAdd = new QToolButton{this};
 	buttonEdit = new QToolButton{this};
@@ -95,84 +121,110 @@ void MainWindow::setupWidget()
 	layout->addWidget(buttonAdd,0,0,1,1);
 	layout->addWidget(buttonEdit,1,0,1,1);
 	layout->addWidget(buttonRemove,2,0,1,1);
-	layout->addWidget(labelLastRefresh,0,1,1,1);
-	layout->addWidget(m_vue,1,1,3,1);
+	layout->addWidget(m_vue,0,1,4,1);
 }
 
 
 
 
 
-// GET ENTRIES ////////////////////////////////////////////////////////////////
-std::vector<Entry> MainWindow::getEntries(QString *errorMessage)
+
+// SLOT MESSAGE RECEIVED //////////////////////////////////////////////////////
+void MainWindow::slotMessageReceived(const QString &msg)
 {
-	QString qStr = "SELECT id, description, number, last_modif FROM Entries";
-	if (!m_bFirstTime) {qStr += " WHERE TIMEDIFF(last_modif,:localLastModif) >= -20";}
-	qStr += ";";
+	//qDebug() << "slotMessageReceived(" << QString{msg}.remove('\"') << ")";
+	QJsonDocument doc = QJsonDocument::fromJson(msg.toUtf8());
+	MsgType msgType = MainWindow::checkMessage(doc);
+	if (msgType == MsgType::None) {return;}
 
-	QSqlQuery q;
-	q.prepare(qStr);
-	q.bindValue(":localLastModif",m_lastModif);
-
-	if (!q.exec())
-	{
-		if (errorMessage) {*errorMessage = "getEntries failed:\n" + q.lastError().text();}
-		return {};
-	}
-
-	std::vector<Entry> entries;
-	while (q.next())
-	{
-		Entry e;
-		e.id = q.value(0).toInt();
-		e.description = q.value(1).toString();
-		e.number = q.value(2).toInt();
-		e.last_modif = q.value(3).toDateTime();
-		entries.push_back(e);
-	}
-
-	if (errorMessage) {*errorMessage = "";}
-	return entries;
-}
-
-// SLOT REFRESH ///////////////////////////////////////////////////////////////
-void MainWindow::slotRefresh()
-{
 	QString errorMessage;
-	std::vector<Entry> entries = MainWindow::getEntries(&errorMessage);
-	if (errorMessage != "")
+	if (msgType == MsgType::AllData)
 	{
-		QMessageBox::critical(this,"Refresh failed",errorMessage);
-		return;
+		for (const QJsonValue &v : doc.array())
+		{
+			if (!v.isObject()) {continue;}
+			Entry e = MainWindow::toEntry(v.toObject());
+			if (!m_modele->processChange(EntryChange{ChangeType::Addition,e},&errorMessage))
+			{
+				QMessageBox::critical(this,"Error",errorMessage);
+				return;
+			}
+		}
 	}
-
-	if (entries.size() > 0) {m_lastModif = m_lastRefresh;}
-	for (const Entry &e : entries)
+	else if (msgType == MsgType::InsertNotification)
 	{
-		ChangeType cht = (m_bFirstTime ? ChangeType::Addition : ChangeType::Modification);
-		if (!m_modele->processChange(EntryChange{cht,e},&errorMessage))
+		Entry e = MainWindow::toEntry(doc.object()["entry"].toObject());
+		if (!m_modele->processChange(EntryChange{ChangeType::Addition,e},&errorMessage))
 			QMessageBox::critical(this,"Error",errorMessage);
 	}
-
-	m_lastRefresh = QDateTime::currentDateTime();
-	labelLastRefresh->setText(m_lastRefresh.toString("yyyy-MM-dd hh:mm:ss"));
-	m_bFirstTime = false;
+	else if (msgType == MsgType::UpdateNotification)
+	{
+		Entry e = MainWindow::toEntry(doc.object()["entry"].toObject());
+		if (!m_modele->processChange(EntryChange{ChangeType::Modification,e},&errorMessage))
+			QMessageBox::critical(this,"Error",errorMessage);
+	}
+	else if (msgType == MsgType::DeleteNotification)
+	{
+		Entry e;
+		e.id = doc.object()["id"].toInt();
+		if (!m_modele->processChange(EntryChange{ChangeType::Deletion,e},&errorMessage))
+			QMessageBox::critical(this,"Error",errorMessage);
+	}
 }
+
+// CHECK MESSAGE TYPE /////////////////////////////////////////////////////////
+MsgType MainWindow::checkMessage(const QJsonDocument &doc)
+{
+	if (doc.isNull()) {return MsgType::None;}
+	if (doc.isArray()) {return MsgType::AllData;}
+	if (!doc.isObject()) {return MsgType::None;}
+	
+	QJsonObject obj = doc.object();
+	if (obj.contains("type") && obj["type"].toString() == "insert" && obj.contains("entry")) {return MsgType::InsertNotification;}
+	if (obj.contains("type") && obj["type"].toString() == "update" && obj.contains("entry")) {return MsgType::UpdateNotification;}
+	if (obj.contains("type") && obj["type"].toString() == "delete" && obj.contains("id"))    {return MsgType::DeleteNotification;}
+	return MsgType::None;
+}
+
+// IS ENTRY ///////////////////////////////////////////////////////////////////
+bool MainWindow::isEntry(const QJsonObject &obj)
+{
+	if (!obj.contains("id") || !obj["id"].isDouble()) {return false;}
+	if (!obj.contains("description") || !obj["description"].isString()) {return false;}
+	if (!obj.contains("number") || !obj["number"].isDouble()) {return false;}
+	if (!obj.contains("last_modif") || !obj["last_modif"].isString()) {return false;}
+	return true;
+}
+
+// TO ENTRY ///////////////////////////////////////////////////////////////////
+Entry MainWindow::toEntry(const QJsonObject &obj)
+{
+	Entry e;
+	e.id = obj["id"].toInt();
+	e.description = obj["description"].toString();
+	e.number = obj["number"].toInt();
+	e.last_modif = QDateTime::fromString(obj["last_modif"].toString(),"yyyy-MM-dd hh:mm:ss");
+	return e;
+}
+
+
+
+
+
 
 // SLOT ADD ///////////////////////////////////////////////////////////////////
 void MainWindow::slotAdd()
 {
-	EntryDialog dialog;
+	EntryDialog dialog{this};
 	if (dialog.exec() != QDialog::Accepted) {return;}
-	
-	QString qStr = "INSERT INTO Entries (description, number, last_modif) VALUES (:d, :n, NOW());";
-	QSqlQuery q;
-	q.prepare(qStr);
-	q.bindValue(":d", dialog.description());
-	q.bindValue(":n",dialog.number());
 
-	if (!q.exec())
-		QMessageBox::critical(this,"Addition failed",q.lastError().text());
+	QJsonObject obj, subObj;
+	obj.insert("rqtType","insert");
+	subObj.insert("description",dialog.description());
+	subObj.insert("number",dialog.number());
+	obj.insert("rqtData",subObj);
+
+	m_webSocket.sendTextMessage(QJsonDocument{obj}.toJson(format));
 }
 
 // SLOT EDIT //////////////////////////////////////////////////////////////////
@@ -186,20 +238,19 @@ void MainWindow::slotEdit()
 	QString description = m_modele->data(m_modele->index(indexId.row(),1),Qt::DisplayRole).toString();
 	int number = m_modele->data(m_modele->index(indexId.row(),2),Qt::DisplayRole).toInt();
 
-	EntryDialog dialog;
+	EntryDialog dialog{this};
 	dialog.setDescription(description);
 	dialog.setNumber(number);
 	if (dialog.exec() != QDialog::Accepted) {return;}
 
-	QString qStr = "UPDATE Entries SET description=:description, number=:number WHERE id=:id;";
-	QSqlQuery q;
-	q.prepare(qStr);
-	q.bindValue(":description",dialog.description());
-	q.bindValue(":number",dialog.number());
-	q.bindValue(":id",id);
+	QJsonObject obj, subObj;
+	obj.insert("rqtType","update");
+	subObj.insert("id",id);
+	subObj.insert("description",dialog.description());
+	subObj.insert("number",dialog.number());
+	obj.insert("rqtData",subObj);
 
-	if (!q.exec())
-		QMessageBox::critical(this,"Modification failed",q.lastError().text());
+	m_webSocket.sendTextMessage(QJsonDocument{obj}.toJson(format));
 }
 
 // SLOT REMOVE ////////////////////////////////////////////////////////////////
@@ -210,12 +261,10 @@ void MainWindow::slotRemove()
 	QModelIndex indexId = indexes[0];
 	int id = m_modele->data(indexId,Qt::DisplayRole).toInt();
 
-	QString qStr = "DELETE FROM Entries WHERE id=:id;";
-	QSqlQuery q;
-	q.prepare(qStr);
-	q.bindValue(":id",id);
+	QJsonObject obj;
+	obj.insert("rqtType","delete");
+	obj.insert("rqtData",id);
 
-	if (!q.exec())
-		QMessageBox::critical(this,"Deletion failed",q.lastError().text());
+	m_webSocket.sendTextMessage(QJsonDocument{obj}.toJson(format));
 }
 

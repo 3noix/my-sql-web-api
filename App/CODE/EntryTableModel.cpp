@@ -40,7 +40,7 @@ QVariant EntryTableModel::data(const QModelIndex &index, int role) const
 			return m_data[row].description;
 		else if (col == Columns::Number)
 			return m_data[row].number;
-		else if (col = Columns::LastModif)
+		else if (col == Columns::LastModif)
 			return m_data[row].last_modif;
 	}
 	else if (role == Qt::TextAlignmentRole)

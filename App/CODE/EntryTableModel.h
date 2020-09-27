@@ -4,7 +4,8 @@
 
 #include <QAbstractTableModel>
 #include <vector>
-#include "Entry.h"
+#include "../../WebApi/CODE/Entry.h"
+#include "EntryChange.h"
 
 
 class EntryTableModel : public QAbstractTableModel
