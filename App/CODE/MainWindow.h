@@ -18,7 +18,7 @@ enum class MsgType
 	InsertNotification,
 	UpdateNotification,
 	DeleteNotification,
-	None
+	Invalid
 };
 
 
@@ -47,9 +47,7 @@ class MainWindow : public QWidget
 		
 		
 	private:
-		static MsgType checkMessage(const QJsonDocument &doc);
-		static bool isEntry(const QJsonObject &obj);
-		static Entry toEntry(const QJsonObject &obj);
+		static MsgType getMessageType(const QJsonDocument &doc);
 
 		void createActions();
 		void setupWidget();

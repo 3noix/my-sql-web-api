@@ -55,6 +55,7 @@ void EntryDialog::setupWidget()
 	lineDescription = new QLineEdit{this};
 	labelNumber = new QLabel{"Number:",this};
 	spinNumber = new QSpinBox{this};
+	spinNumber->setRange(1,999999);
 	
 	boutonOk = new QPushButton{"Ok",this};
 	boutonCancel = new QPushButton{"Cancel",this};

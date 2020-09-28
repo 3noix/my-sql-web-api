@@ -10,6 +10,16 @@
 class QWebSocketServer;
 class QWebSocket;
 
+enum class MsgType
+{
+	UserName,
+	AllDataRequest,
+	InsertRequest,
+	UpdateRequest,
+	DeleteRequest,
+	Invalid
+};
+
 
 class ApiWebSocketsServer : public QObject
 {
@@ -41,9 +51,9 @@ class ApiWebSocketsServer : public QObject
 			QWebSocket *socket;
 		};
 		
+		static MsgType getMessageType(const QJsonDocument &doc);
 		static bool sendAllEntries(const QString &originalMsg, QWebSocket *socket);
 		static void sendErrorMessage(QWebSocket *socket, const QString &originalMsg, const QString &errorMessage);
-		static bool checkInputData(const QJsonDocument &doc);
 		static QString ethernetLocalIpAddress(bool ipv6 = false);
 
 		quint16 m_port;

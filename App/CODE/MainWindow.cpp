@@ -28,9 +28,7 @@ const QJsonDocument::JsonFormat format = QJsonDocument::Compact;
 //  SETUP WIDGET
 //
 //  SLOT MESSAGE RECEIVED
-//  CHECK MESSAGE TYPE
-//  IS ENTRY
-//  TO ENTRY
+//  GET MESSAGE TYPE
 //
 //  SLOT ADD
 //  SLOT EDIT
@@ -70,8 +68,7 @@ bool MainWindow::connectToDatabaseApi()
 		actionRemove->setEnabled(true);
 
 		// send the user name
-		QJsonObject obj;
-		obj.insert("userName",getWindowsUserName());
+		QJsonObject obj{{"userName",getWindowsUserName()}};
 		m_webSocket.sendTextMessage(QJsonDocument{obj}.toJson(format));
 	}
 
@@ -151,16 +148,16 @@ void MainWindow::slotMessageReceived(const QString &msg)
 {
 	//qDebug() << "slotMessageReceived(" << QString{msg}.remove('\"') << ")";
 	QJsonDocument doc = QJsonDocument::fromJson(msg.toUtf8());
-	MsgType msgType = MainWindow::checkMessage(doc);
-	if (msgType == MsgType::None) {return;}
+	MsgType msgType = MainWindow::getMessageType(doc);
+	if (msgType == MsgType::Invalid) {return;}
 
 	QString errorMessage;
 	if (msgType == MsgType::AllData)
 	{
 		for (const QJsonValue &v : doc.array())
 		{
-			if (!v.isObject()) {continue;}
-			Entry e = MainWindow::toEntry(v.toObject());
+			Entry e = Entry::fromJsonObject(v.toObject());
+			if (e.id == 0) {continue;}
 			if (!m_modele->processChange(EntryChange{ChangeType::Addition,e},&errorMessage))
 			{
 				QMessageBox::critical(this,"Error",errorMessage);
@@ -170,13 +167,15 @@ void MainWindow::slotMessageReceived(const QString &msg)
 	}
 	else if (msgType == MsgType::InsertNotification)
 	{
-		Entry e = MainWindow::toEntry(doc.object()["entry"].toObject());
+		Entry e = Entry::fromJsonObject(doc.object()["entry"].toObject());
+		if (e.id == 0) {return;}
 		if (!m_modele->processChange(EntryChange{ChangeType::Addition,e},&errorMessage))
 			QMessageBox::critical(this,"Error",errorMessage);
 	}
 	else if (msgType == MsgType::UpdateNotification)
 	{
-		Entry e = MainWindow::toEntry(doc.object()["entry"].toObject());
+		Entry e = Entry::fromJsonObject(doc.object()["entry"].toObject());
+		if (e.id == 0) {return;}
 		if (!m_modele->processChange(EntryChange{ChangeType::Modification,e},&errorMessage))
 			QMessageBox::critical(this,"Error",errorMessage);
 	}
@@ -189,39 +188,18 @@ void MainWindow::slotMessageReceived(const QString &msg)
 	}
 }
 
-// CHECK MESSAGE TYPE /////////////////////////////////////////////////////////
-MsgType MainWindow::checkMessage(const QJsonDocument &doc)
+// GET MESSAGE TYPE ///////////////////////////////////////////////////////////
+MsgType MainWindow::getMessageType(const QJsonDocument &doc)
 {
-	if (doc.isNull()) {return MsgType::None;}
+	if (doc.isNull()) {return MsgType::Invalid;}
 	if (doc.isArray()) {return MsgType::AllData;}
-	if (!doc.isObject()) {return MsgType::None;}
+	if (!doc.isObject()) {return MsgType::Invalid;}
 	
 	QJsonObject obj = doc.object();
 	if (obj.contains("type") && obj["type"].toString() == "insert" && obj.contains("entry")) {return MsgType::InsertNotification;}
 	if (obj.contains("type") && obj["type"].toString() == "update" && obj.contains("entry")) {return MsgType::UpdateNotification;}
 	if (obj.contains("type") && obj["type"].toString() == "delete" && obj.contains("id"))    {return MsgType::DeleteNotification;}
-	return MsgType::None;
-}
-
-// IS ENTRY ///////////////////////////////////////////////////////////////////
-bool MainWindow::isEntry(const QJsonObject &obj)
-{
-	if (!obj.contains("id") || !obj["id"].isDouble()) {return false;}
-	if (!obj.contains("description") || !obj["description"].isString()) {return false;}
-	if (!obj.contains("number") || !obj["number"].isDouble()) {return false;}
-	if (!obj.contains("last_modif") || !obj["last_modif"].isString()) {return false;}
-	return true;
-}
-
-// TO ENTRY ///////////////////////////////////////////////////////////////////
-Entry MainWindow::toEntry(const QJsonObject &obj)
-{
-	Entry e;
-	e.id = obj["id"].toInt();
-	e.description = obj["description"].toString();
-	e.number = obj["number"].toInt();
-	e.last_modif = QDateTime::fromString(obj["last_modif"].toString(),"yyyy-MM-dd hh:mm:ss");
-	return e;
+	return MsgType::Invalid;
 }
 
 
@@ -235,12 +213,8 @@ void MainWindow::slotAdd()
 	EntryDialog dialog{this};
 	if (dialog.exec() != QDialog::Accepted) {return;}
 
-	QJsonObject obj, subObj;
-	obj.insert("rqtType","insert");
-	subObj.insert("description",dialog.description());
-	subObj.insert("number",dialog.number());
-	obj.insert("rqtData",subObj);
-
+	QJsonObject subObj{{"description",dialog.description()},{"number",dialog.number()}};
+	QJsonObject obj{{"rqtType","insert"},{"rqtData",subObj}};
 	m_webSocket.sendTextMessage(QJsonDocument{obj}.toJson(format));
 }
 
@@ -260,13 +234,8 @@ void MainWindow::slotEdit()
 	dialog.setNumber(number);
 	if (dialog.exec() != QDialog::Accepted) {return;}
 
-	QJsonObject obj, subObj;
-	obj.insert("rqtType","update");
-	subObj.insert("id",id);
-	subObj.insert("description",dialog.description());
-	subObj.insert("number",dialog.number());
-	obj.insert("rqtData",subObj);
-
+	QJsonObject subObj{{"id",id},{"description",dialog.description()},{"number",dialog.number()}};
+	QJsonObject obj{{"rqtType","update"},{"rqtData",subObj}};
 	m_webSocket.sendTextMessage(QJsonDocument{obj}.toJson(format));
 }
 
@@ -278,10 +247,7 @@ void MainWindow::slotRemove()
 	QModelIndex indexId = indexes[0];
 	int id = m_modele->data(indexId,Qt::DisplayRole).toInt();
 
-	QJsonObject obj;
-	obj.insert("rqtType","delete");
-	obj.insert("rqtData",id);
-
+	QJsonObject obj{{"rqtType","delete"},{"rqtData",id}};
 	m_webSocket.sendTextMessage(QJsonDocument{obj}.toJson(format));
 }
 

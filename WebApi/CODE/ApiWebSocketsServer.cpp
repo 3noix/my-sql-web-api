@@ -24,7 +24,7 @@ const QJsonDocument::JsonFormat format = QJsonDocument::Compact;
 //
 //  SLOT PROCESS MESSAGE
 //  SEND ERROR MESSAGE
-//  CHECK INPUT DATA
+//  GET MESSAGE TYPE
 ///////////////////////////////////////////////////////////////////////////////
 
 
@@ -99,6 +99,8 @@ void ApiWebSocketsServer::slotNewConnection()
 	m_clients.push_back(User{"Anonymous",socket});
 
 	std::cout << "one connection (now " << m_clients.size() << " clients connected)" << std::endl;
+
+	// we send all the data to this client so that it inits with it
 	ApiWebSocketsServer::sendAllEntries("none (on connection)",socket);
 }
 
@@ -134,7 +136,8 @@ void ApiWebSocketsServer::slotProcessMessage(const QString &msg)
 	
 	// checks on the message
 	QJsonDocument jsonDoc = QJsonDocument::fromJson(msg.toUtf8());
-	if (!ApiWebSocketsServer::checkInputData(jsonDoc))
+	MsgType msgType = ApiWebSocketsServer::getMessageType(jsonDoc);
+	if (msgType == MsgType::Invalid)
 	{
 		ApiWebSocketsServer::sendErrorMessage(socket,msg,"Invalid input data");
 		std::cout << "----------- ERROR -----------" << std::endl;
@@ -143,31 +146,29 @@ void ApiWebSocketsServer::slotProcessMessage(const QString &msg)
 	}
 
 	QJsonObject object = jsonDoc.object();
-	if (object.contains("userName"))
+	if (msgType == MsgType::UserName)
 	{
-		// this type of message is sent by the client just after the connection
+		// This type of message is sent by the client just after the connection.
+		// It allows the association of the socket with a user name.
 		QString userName = object["userName"].toString();
 		auto socketMatches = [socket] (const User &u) {return (u.socket == socket);};
 		auto userIt = std::find_if(m_clients.begin(),m_clients.end(),socketMatches);
 		if (userIt != m_clients.end()) {userIt->name = userName;}
-		return;
 	}
-
-	QString rqtType = object["rqtType"].toString();
-	const QJsonValue &rqtData = object["rqtData"];
-	QString errorMessage;
-
-	if (rqtType == "getData")
+	else if (msgType == MsgType::AllDataRequest)
 	{
+		// This type of message is sent by the client just after the connection.
+		// The client will use the answer to init its data
 		ApiWebSocketsServer::sendAllEntries(msg,socket);
 	}
-	else if (rqtType == "insert")
+	else if (msgType == MsgType::InsertRequest)
 	{
-		// get the data from the message
-		QString desc = rqtData.toObject().value("description").toString();
-		int number = rqtData.toObject().value("number").toDouble();
+		// extract the data from the message
+		QString desc = object["rqtData"].toObject().value("description").toString();
+		int number = object["rqtData"].toObject().value("number").toDouble();
 
 		// insert it into the database
+		QString errorMessage;
 		Entry e = SqlInterface::insertEntry(desc,number,&errorMessage);
 		if (e.id == 0 || errorMessage != "")
 		{
@@ -176,25 +177,19 @@ void ApiWebSocketsServer::slotProcessMessage(const QString &msg)
 		}
 
 		// notify all the users
-		QJsonObject eObj;
-		eObj.insert("id",e.id);
-		eObj.insert("description",e.description);
-		eObj.insert("number",e.number);
-		eObj.insert("last_modif",e.last_modif.toString("yyyy-MM-dd hh:mm:ss"));
-		QJsonObject obj;
-		obj.insert("type","insert");
-		obj.insert("entry",eObj);
+		QJsonObject obj{{"type","insert"},{"entry",e.toJsonObject()}};
 		QString msg2 = QJsonDocument{obj}.toJson(format);
 		for (const User &u : m_clients) {u.socket->sendTextMessage(msg2);}
 	}
-	else if (rqtType == "update")
+	else if (msgType == MsgType::UpdateRequest)
 	{
 		// get the data from the message
-		int id = rqtData.toObject().value("id").toDouble();
-		QString desc = rqtData.toObject().value("description").toString();
-		int number = rqtData.toObject().value("number").toDouble();
+		int id = object["rqtData"].toObject().value("id").toDouble();
+		QString desc = object["rqtData"].toObject().value("description").toString();
+		int number = object["rqtData"].toObject().value("number").toDouble();
 
 		// update the entry in the database
+		QString errorMessage;
 		Entry e = SqlInterface::updateEntry(id,desc,number,&errorMessage);
 		if (e.id == 0 || errorMessage != "")
 		{
@@ -203,20 +198,14 @@ void ApiWebSocketsServer::slotProcessMessage(const QString &msg)
 		}
 
 		// notify all the users
-		QJsonObject eObj;
-		eObj.insert("id",e.id);
-		eObj.insert("description",e.description);
-		eObj.insert("number",e.number);
-		eObj.insert("last_modif",e.last_modif.toString("yyyy-MM-dd hh:mm:ss"));
-		QJsonObject obj;
-		obj.insert("type","update");
-		obj.insert("entry",eObj);
+		QJsonObject obj{{"type","update"},{"entry",e.toJsonObject()}};
 		QString msg2 = QJsonDocument{obj}.toJson(format);
 		for (const User &u : m_clients) {u.socket->sendTextMessage(msg2);}
 	}
-	else if (rqtType == "delete")
+	else if (msgType == MsgType::DeleteRequest)
 	{
-		int id = rqtData.toDouble();
+		int id = object["rqtData"].toDouble();
+		QString errorMessage;
 		if (!SqlInterface::deleteEntry(id,&errorMessage))
 		{
 			ApiWebSocketsServer::sendErrorMessage(socket,msg,errorMessage);
@@ -224,9 +213,7 @@ void ApiWebSocketsServer::slotProcessMessage(const QString &msg)
 		}
 
 		// notify all the users
-		QJsonObject obj;
-		obj.insert("type","delete");
-		obj.insert("id",id);
+		QJsonObject obj{{"type","delete"},{"id",id}};
 		QString msg2 = QJsonDocument{obj}.toJson(format);
 		for (const User &u : m_clients) {u.socket->sendTextMessage(msg2);}
 	}
@@ -245,21 +232,10 @@ bool ApiWebSocketsServer::sendAllEntries(const QString &originalMsg, QWebSocket 
 	}
 
 	QJsonArray array;
-	for (const Entry &e : entries)
-	{
-		QJsonObject obj;
-		obj.insert("id",e.id);
-		obj.insert("description",e.description);
-		obj.insert("number",e.number);
-		obj.insert("last_modif",e.last_modif.toString("yyyy-MM-dd hh:mm:ss"));
-		array.push_back(obj);
-	}
-	
+	for (const Entry &e : entries) {array.push_back(e.toJsonObject());}
 	socket->sendTextMessage(QJsonDocument{array}.toJson(format));
 	return true;
 }
-
-
 
 /*
 the original messages should be like this:
@@ -291,60 +267,55 @@ the original messages should be like this:
 }
 */
 
-
-
-
 // SEND ERROR MESSAGE /////////////////////////////////////////////////////////
 void ApiWebSocketsServer::sendErrorMessage(QWebSocket *socket, const QString &originalMsg, const QString &errorMessage)
 {
 	if (!socket) {return;}
-	QJsonObject obj;
-	obj.insert("originalMsg",originalMsg);
-	obj.insert("errorMsg",errorMessage);
+	QJsonObject obj{{"originalMsg",originalMsg},{"errorMsg",errorMessage}};
 	socket->sendTextMessage(QJsonDocument{obj}.toJson(format));
 }
 
-// CHECK INPUT DATA ///////////////////////////////////////////////////////////
-bool ApiWebSocketsServer::checkInputData(const QJsonDocument &doc)
+// GET MESSAGE TYPE ///////////////////////////////////////////////////////////
+MsgType ApiWebSocketsServer::getMessageType(const QJsonDocument &doc)
 {
-	if (!doc.isObject()) {return false;}
-
-	QJsonObject object = doc.object();
-	if (object.contains("userName") && object["userName"].isString()) {return true;}
-	if (!object.contains("rqtType")) {return false;}
-	if (!object.contains("rqtData")) {return false;}
-	if (!object["rqtType"].isString()) {return false;}
+	if (!doc.isObject()) {return MsgType::Invalid;}
 	
-	QString rqtType = object["rqtType"].toString();
-	if (rqtType == "getData")
-	{
-		return true;
-	}
-	else if (rqtType == "insert")
-	{
-		const QJsonValue &v = object["rqtData"];
-		if (!v.isObject()) {return false;}
-		QJsonObject rdo = v.toObject();
+	QJsonObject obj = doc.object();
+	if (obj.contains("userName") && obj["userName"].isString()) {return MsgType::UserName;}
+	if (!obj.contains("rqtType") || !obj.contains("rqtData")) {return MsgType::Invalid;}
+	if (!obj["rqtType"].isString()) {return MsgType::Invalid;}
 
-		if (!rdo.contains("description") || !rdo.contains("number")) {return false;}
-		if (!rdo["description"].isString() || !rdo["number"].isDouble()) {return false;}
-		return true;
-	}
-	else if (rqtType == "update")
-	{
-		const QJsonValue &v = object["rqtData"];
-		if (!v.isObject()) {return false;}
-		QJsonObject rdo = v.toObject();
+	QString rqtType = obj["rqtType"].toString();
+	const QJsonValue &rqtData = obj["rqtData"];
 
-		if (!rdo.contains("id") || !rdo.contains("description") || !rdo.contains("number")) {return false;}
-		if (!rdo["id"].isDouble() || !rdo["description"].isString() || !rdo["number"].isDouble()) {return false;}
-		return true;
-	}
-	else if (rqtType == "delete")
+	if (rqtType == "getData") {return MsgType::AllDataRequest;}
+
+	if (rqtType == "insert")
 	{
-		return object["rqtData"].isDouble();
+		if (!rqtData.isObject()) {return MsgType::Invalid;}
+		QJsonObject rdo = rqtData.toObject();
+
+		if (!rdo.contains("description") || !rdo.contains("number")) {return MsgType::Invalid;}
+		if (!rdo["description"].isString() || !rdo["number"].isDouble()) {return MsgType::Invalid;}
+		return MsgType::InsertRequest;
 	}
 
-	return false;
+	if (rqtType == "update")
+	{
+		if (!rqtData.isObject()) {return MsgType::Invalid;}
+		QJsonObject rdo = rqtData.toObject();
+
+		if (!rdo.contains("id") || !rdo.contains("description") || !rdo.contains("number")) {return MsgType::Invalid;}
+		if (!rdo["id"].isDouble() || !rdo["description"].isString() || !rdo["number"].isDouble()) {return MsgType::Invalid;}
+		return MsgType::UpdateRequest;
+	}
+
+	if (rqtType == "delete")
+	{
+		if (!rqtData.isDouble()) {return MsgType::Invalid;}
+		return MsgType::DeleteRequest;
+	}
+
+	return MsgType::Invalid;
 }
 
