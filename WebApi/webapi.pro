@@ -9,7 +9,7 @@ CONFIG(release, debug|release) {
 TEMPLATE = app
 TARGET = WebApi
 CONFIG += c++17 console
-DESTDIR = $$MODE
+DESTDIR = ../bin
 OBJECTS_DIR = $$MODE/objects
 MOC_DIR = $$MODE/moc
 QT += sql websockets

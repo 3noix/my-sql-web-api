@@ -9,7 +9,7 @@ CONFIG(release, debug|release) {
 TEMPLATE = app
 TARGET = App
 CONFIG += c++17
-DESTDIR = $$MODE
+DESTDIR = ../bin
 OBJECTS_DIR = $$MODE/objects
 MOC_DIR = $$MODE/moc
 QT += widgets websockets
