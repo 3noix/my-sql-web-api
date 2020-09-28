@@ -160,10 +160,11 @@ bool EntryTableModel::processChange(const EntryChange &ch, QString *errorMessage
 	{
 		it->description = ch.entry.description;
 		it->number = ch.entry.number;
+		it->last_modif = ch.entry.last_modif;
 
 		int row = it - m_data.begin();
 		QModelIndex index1 = this->index(row,1,{});
-		QModelIndex index2 = this->index(row,2,{});
+		QModelIndex index2 = this->index(row,3,{});
 		emit dataChanged(index1,index2);
 	}
 	else if (ch.changeType == ChangeType::Deletion)
