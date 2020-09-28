@@ -43,6 +43,7 @@ class MainWindow : public QWidget
 		void slotEdit();
 		void slotRemove();
 		void slotMessageReceived(const QString &msg);
+		void slotDisconnected();
 		
 		
 	private:

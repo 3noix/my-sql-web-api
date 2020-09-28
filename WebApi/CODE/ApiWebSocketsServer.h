@@ -35,6 +35,12 @@ class ApiWebSocketsServer : public QObject
 		
 		
 	private:
+		struct User
+		{
+			QString name;
+			QWebSocket *socket;
+		};
+		
 		static bool sendAllEntries(const QString &originalMsg, QWebSocket *socket);
 		static void sendErrorMessage(QWebSocket *socket, const QString &originalMsg, const QString &errorMessage);
 		static bool checkInputData(const QJsonDocument &doc);
@@ -42,7 +48,7 @@ class ApiWebSocketsServer : public QObject
 
 		quint16 m_port;
 		QWebSocketServer *m_server;
-		std::list<QWebSocket*> m_clients;
+		std::list<User> m_clients;
 };
 
 

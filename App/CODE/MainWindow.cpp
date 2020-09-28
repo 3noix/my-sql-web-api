@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "EntryTableModel.h"
 #include "EntryDialog.h"
+#include "otherFunctions.h"
 
 #include <QAction>
 #include <QGridLayout>
@@ -21,6 +22,7 @@ const QJsonDocument::JsonFormat format = QJsonDocument::Compact;
 ///////////////////////////////////////////////////////////////////////////////
 //  CONSTRUCTEUR
 //  CONNECT TO DATABASE API
+//  SLOT DISCONNECTED
 //  IS CONNECTED
 //  CREATE ACTIONS
 //  SETUP WIDGET
@@ -55,18 +57,33 @@ bool MainWindow::connectToDatabaseApi()
 	QEventLoop loop;
 	QObject::connect(&m_webSocket, SIGNAL(connected()), &loop, SLOT(quit()));
 	QObject::connect(&m_webSocket, SIGNAL(error(QAbstractSocket::SocketError)), &loop, SLOT(quit()));
+	QObject::connect(&m_webSocket, SIGNAL(disconnected()), this, SLOT(slotDisconnected()));
 	m_webSocket.open(QUrl{"ws://localhost:1234"});
 	loop.exec();
 
 	bool bConnected = (m_webSocket.isValid());
 	if (bConnected)
 	{
+		// enable the actions
 		actionAdd->setEnabled(true);
 		actionEdit->setEnabled(true);
 		actionRemove->setEnabled(true);
+
+		// send the user name
+		QJsonObject obj;
+		obj.insert("userName",getWindowsUserName());
+		m_webSocket.sendTextMessage(QJsonDocument{obj}.toJson(format));
 	}
 
 	return bConnected;
+}
+
+// SLOT DISCONNECTED //////////////////////////////////////////////////////////
+void MainWindow::slotDisconnected()
+{
+	actionAdd->setEnabled(false);
+	actionEdit->setEnabled(false);
+	actionRemove->setEnabled(false);
 }
 
 // IS CONNECTED ///////////////////////////////////////////////////////////////

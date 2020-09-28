@@ -23,7 +23,8 @@ HEADERS +=  CODE/MainWindow.h \
 SOURCES +=  CODE/main.cpp \
 			CODE/MainWindow.cpp \
 			CODE/EntryDialog.cpp \
-			CODE/EntryTableModel.cpp
+			CODE/EntryTableModel.cpp \
+			CODE/otherFunctions.cpp
 
 
 RESOURCES += resources.qrc

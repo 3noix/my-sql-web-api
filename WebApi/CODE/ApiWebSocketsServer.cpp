@@ -96,7 +96,7 @@ void ApiWebSocketsServer::slotNewConnection()
 	QWebSocket *socket = m_server->nextPendingConnection();
 	QObject::connect(socket, SIGNAL(textMessageReceived(QString)), this, SLOT(slotProcessMessage(QString)));
 	QObject::connect(socket, SIGNAL(disconnected()), this, SLOT(slotSocketDisconnected()));
-	m_clients.push_back(socket);
+	m_clients.push_back(User{"Anonymous",socket});
 
 	std::cout << "one connection (now " << m_clients.size() << " clients connected)" << std::endl;
 	ApiWebSocketsServer::sendAllEntries("none (on connection)",socket);
@@ -107,7 +107,10 @@ void ApiWebSocketsServer::slotSocketDisconnected()
 {
 	if (QWebSocket *socket = qobject_cast<QWebSocket*>(sender()))
 	{
-		m_clients.remove(socket);
+		auto socketMatches = [socket] (const User &u) {return (u.socket == socket);};
+		auto userIt = std::find_if(m_clients.begin(),m_clients.end(),socketMatches);
+		if (userIt != m_clients.end()) {m_clients.erase(userIt);}
+
 		socket->abort();
 		socket->deleteLater();
 		std::cout << "one disconnection (now " << m_clients.size() << " clients connected)" << std::endl;
@@ -140,6 +143,16 @@ void ApiWebSocketsServer::slotProcessMessage(const QString &msg)
 	}
 
 	QJsonObject object = jsonDoc.object();
+	if (object.contains("userName"))
+	{
+		// this type of message is sent by the client just after the connection
+		QString userName = object["userName"].toString();
+		auto socketMatches = [socket] (const User &u) {return (u.socket == socket);};
+		auto userIt = std::find_if(m_clients.begin(),m_clients.end(),socketMatches);
+		if (userIt != m_clients.end()) {userIt->name = userName;}
+		return;
+	}
+
 	QString rqtType = object["rqtType"].toString();
 	const QJsonValue &rqtData = object["rqtData"];
 	QString errorMessage;
@@ -172,7 +185,7 @@ void ApiWebSocketsServer::slotProcessMessage(const QString &msg)
 		obj.insert("type","insert");
 		obj.insert("entry",eObj);
 		QString msg2 = QJsonDocument{obj}.toJson(format);
-		for (QWebSocket *socket : m_clients) {socket->sendTextMessage(msg2);}
+		for (const User &u : m_clients) {u.socket->sendTextMessage(msg2);}
 	}
 	else if (rqtType == "update")
 	{
@@ -199,7 +212,7 @@ void ApiWebSocketsServer::slotProcessMessage(const QString &msg)
 		obj.insert("type","update");
 		obj.insert("entry",eObj);
 		QString msg2 = QJsonDocument{obj}.toJson(format);
-		for (QWebSocket *socket : m_clients) {socket->sendTextMessage(msg2);}
+		for (const User &u : m_clients) {u.socket->sendTextMessage(msg2);}
 	}
 	else if (rqtType == "delete")
 	{
@@ -215,7 +228,7 @@ void ApiWebSocketsServer::slotProcessMessage(const QString &msg)
 		obj.insert("type","delete");
 		obj.insert("id",id);
 		QString msg2 = QJsonDocument{obj}.toJson(format);
-		for (QWebSocket *socket : m_clients) {socket->sendTextMessage(msg2);}
+		for (const User &u : m_clients) {u.socket->sendTextMessage(msg2);}
 	}
 }
 
@@ -250,6 +263,9 @@ bool ApiWebSocketsServer::sendAllEntries(const QString &originalMsg, QWebSocket 
 
 /*
 the original messages should be like this:
+{
+	"userName": "myPseudo"
+}
 {
 	"rqtType": "getData",
 	"rqtData": null
@@ -294,6 +310,7 @@ bool ApiWebSocketsServer::checkInputData(const QJsonDocument &doc)
 	if (!doc.isObject()) {return false;}
 
 	QJsonObject object = doc.object();
+	if (object.contains("userName") && object["userName"].isString()) {return true;}
 	if (!object.contains("rqtType")) {return false;}
 	if (!object.contains("rqtData")) {return false;}
 	if (!object["rqtType"].isString()) {return false;}
