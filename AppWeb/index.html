@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8"/>
+	<link rel="stylesheet" href="layout.css"/>
+	<link rel="stylesheet" href="https://pro.fontawesome.com/releases/v5.10.0/css/all.css"/>
+	<title>WebApp</title>
+	<script src="script.js" defer></script>
+</head>
+<body>
+	<section>
+		<button type="button" id="add"><i class="fas fa-plus"></i></button>
+		<button type="button" id="edit"><i class="fas fa-pencil-alt"></i></button>
+		<button type="button" id="remove"><i class="fas fa-minus"></i></button>
+	</section>
+	<main>
+		<table>
+			<thead>
+				<tr>
+					<th>Id</th>
+					<th>Description</th>
+					<th>Number</th>
+					<th>Last modif</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr><td>1</td><td>jhglekjg</td><td>3</td><td>23/09/2020</td></tr>
+				<tr><td>2</td><td>ztgeirjhjglreg</td><td>75</td><td>30/09/2020</td></tr>
+				<tr><td>4</td><td>hrthtrh</td><td>7</td><td>27/09/2020</td></tr>
+			</tbody>
+		</table>
+	</main>
+	<form>
+		<div>
+			<label for="desc">Description:</label>
+			<input type="text" name="desc" id="desc">
+		</div>
+		<div>
+			<label for="number">Number:</label>
+			<input type="number" name="number" id="number">
+		</div>
+		<div>
+			<button type="button" id="ok">Ok</button>
+			<button type="button" id="cancel">Cancel</button>
+		</div>
+	</form>
+</body>
+</html>

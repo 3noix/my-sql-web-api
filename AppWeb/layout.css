@@ -1,0 +1,135 @@
+* {
+  -webkit-box-sizing: border-box;
+          box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  height: 100vh;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: horizontal;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: row;
+          flex-direction: row;
+}
+
+section {
+  width: 50px;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  -webkit-box-pack: start;
+      -ms-flex-pack: start;
+          justify-content: flex-start;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+}
+
+main {
+  width: calc(100% - 50px);
+}
+
+section button {
+  margin: 5px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid gray;
+  background: lightgray;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+table {
+  margin: 5px;
+  border-collapse: collapse;
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid black;
+  padding: 5px 10px;
+  text-align: center;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+      -ms-user-select: none;
+          user-select: none;
+}
+
+table th {
+  height: 40px;
+  min-width: 30px;
+  border: 1px solid black;
+  padding: 5px 10px;
+}
+
+table tr.selected {
+  background: rgba(0, 255, 0, 0.2);
+}
+
+table td {
+  height: 30px;
+  border: 1px solid black;
+  padding: 5px 10px;
+}
+
+table td:nth-child(2) {
+  text-align: left;
+}
+
+form {
+  display: none;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  -webkit-box-pack: space-evenly;
+      -ms-flex-pack: space-evenly;
+          justify-content: space-evenly;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 400px;
+  height: 150px;
+  background: rgba(50, 50, 50, 0.9);
+  border: 1px solid black;
+  z-index: 1;
+}
+
+form div {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  padding: 5px;
+}
+
+form div label {
+  color: white;
+  margin-right: 10px;
+}
+
+form div input {
+  color: white;
+  background-color: transparent;
+  border: 1px solid white;
+  border-radius: 5px;
+  padding: 0 5px;
+}
+
+form button {
+  background: transparent;
+  color: white;
+  border: 1px solid white;
+  border-radius: 5px;
+  padding: 5px 10px;
+  cursor: pointer;
+  margin: 0px 10px;
+}
