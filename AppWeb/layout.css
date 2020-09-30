@@ -82,7 +82,27 @@ table td:nth-child(2) {
   text-align: left;
 }
 
-form {
+.background {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: white;
+  z-index: 1;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+}
+
+.background form {
+  position: absolute;
+  top: 20px;
+  left: 20px;
   display: none;
   -webkit-box-orient: vertical;
   -webkit-box-direction: normal;
@@ -94,29 +114,26 @@ form {
   -webkit-box-align: center;
       -ms-flex-align: center;
           align-items: center;
-  position: absolute;
-  top: 0;
-  left: 0;
   width: 400px;
   height: 150px;
   background: rgba(50, 50, 50, 0.9);
-  border: 1px solid black;
-  z-index: 1;
+  border-radius: 10px;
+  z-index: 2;
 }
 
-form div {
+.background form div {
   display: -webkit-box;
   display: -ms-flexbox;
   display: flex;
   padding: 5px;
 }
 
-form div label {
+.background form div label {
   color: white;
   margin-right: 10px;
 }
 
-form div input {
+.background form div input {
   color: white;
   background-color: transparent;
   border: 1px solid white;
@@ -124,7 +141,7 @@ form div input {
   padding: 0 5px;
 }
 
-form button {
+.background form button {
   background: transparent;
   color: white;
   border: 1px solid white;
