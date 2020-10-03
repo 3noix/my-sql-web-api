@@ -4,6 +4,7 @@
 #include <QNetworkInterface>
 #include <QWebSocketServer>
 #include <QWebSocket>
+#include <QTimer>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonValue>
@@ -21,6 +22,8 @@ const QJsonDocument::JsonFormat format = QJsonDocument::Compact;
 //  CLOSE
 //  SLOT NEW CONNECTION
 //  SLOT SOCKET DISCONNECTED
+//  SLOT CHECK AND PING
+//  SLOT PONG
 //
 //  SLOT PROCESS MESSAGE
 //  SEND ERROR MESSAGE
@@ -33,7 +36,11 @@ ApiWebSocketsServer::ApiWebSocketsServer(quint16 port) : QObject{}
 {
 	m_port = port;
 	m_server = new QWebSocketServer{"WebApiServer",QWebSocketServer::NonSecureMode};
-	QObject::connect(m_server, SIGNAL(newConnection()), this, SLOT(slotNewConnection()));
+	m_pingTimer = new QTimer{this};
+	m_pingTimer->start(dtPing*1000);
+
+	QObject::connect(m_server,    SIGNAL(newConnection()), this, SLOT(slotNewConnection()));
+	QObject::connect(m_pingTimer, SIGNAL(timeout()),       this, SLOT(slotCheckAndPing()));
 }
 
 ApiWebSocketsServer::~ApiWebSocketsServer()
@@ -95,8 +102,9 @@ void ApiWebSocketsServer::slotNewConnection()
 {
 	QWebSocket *socket = m_server->nextPendingConnection();
 	QObject::connect(socket, SIGNAL(textMessageReceived(QString)), this, SLOT(slotProcessMessage(QString)));
-	QObject::connect(socket, SIGNAL(disconnected()), this, SLOT(slotSocketDisconnected()));
-	m_clients.push_back(User{"Anonymous",socket});
+	QObject::connect(socket, SIGNAL(disconnected()),               this, SLOT(slotSocketDisconnected()));
+	QObject::connect(socket, SIGNAL(pong(quint64,QByteArray)),     this, SLOT(slotPong(quint64,QByteArray)));
+	m_clients.push_back(User{"Anonymous",socket,{},{},false});
 
 	std::cout << "one connection (now " << m_clients.size() << " clients connected)" << std::endl;
 
@@ -107,16 +115,74 @@ void ApiWebSocketsServer::slotNewConnection()
 // SLOT SOCKET DISCONNECTED ///////////////////////////////////////////////////
 void ApiWebSocketsServer::slotSocketDisconnected()
 {
-	if (QWebSocket *socket = qobject_cast<QWebSocket*>(sender()))
-	{
-		auto socketMatches = [socket] (const User &u) {return (u.socket == socket);};
-		auto userIt = std::find_if(m_clients.begin(),m_clients.end(),socketMatches);
-		if (userIt != m_clients.end()) {m_clients.erase(userIt);}
+	QWebSocket *socket = qobject_cast<QWebSocket*>(sender());
+	if (socket) {this->fctSocketDisconnected(socket);}
+}
 
-		socket->abort();
-		socket->deleteLater();
-		std::cout << "one disconnection (now " << m_clients.size() << " clients connected)" << std::endl;
+void ApiWebSocketsServer::fctSocketDisconnected(QWebSocket *socket)
+{
+	auto socketMatches = [socket] (const User &u) {return (u.socket == socket);};
+	auto userIt = std::find_if(m_clients.begin(),m_clients.end(),socketMatches);
+	if (userIt != m_clients.end()) {m_clients.erase(userIt);}
+	
+	socket->abort();
+	socket->deleteLater();
+	std::cout << "one disconnection (now " << m_clients.size() << " clients connected)" << std::endl;
+}
+
+// SLOT PING ALL CLIENTS //////////////////////////////////////////////////////
+void ApiWebSocketsServer::slotCheckAndPing()
+{
+	int nbConnectionsLost = 0;
+	for (User &u : m_clients)
+	{
+		QDateTime cdt = QDateTime::currentDateTime();
+
+		// check ping pong
+		if (u.firstPing.isValid() && u.firstPing.secsTo(cdt) > dtPingFirstCheck)
+		{
+			bool checkFailed1 = u.lastPong.secsTo(cdt) > dtPingThrFailure;
+			bool checkFailed2 = (!u.lastPong.isValid() && u.firstPing.secsTo(cdt) > dtPingThrFailure);
+			if (checkFailed1 || checkFailed2)
+			{
+				QObject::disconnect(u.socket, SIGNAL(textMessageReceived(QString)), this, SLOT(slotProcessMessage(QString)));
+				QObject::disconnect(u.socket, SIGNAL(disconnected()),               this, SLOT(slotSocketDisconnected()));
+				QObject::disconnect(u.socket, SIGNAL(pong(quint64,QByteArray)),     this, SLOT(slotPong(quint64,QByteArray)));
+				u.lost = true;
+				u.socket->abort();
+				u.socket->deleteLater();
+				nbConnectionsLost++;
+				continue;
+			}
+		}
+
+		// ping it
+		u.socket->ping();
+		if (u.firstPing.isNull()) {u.firstPing = cdt;}
 	}
+
+	// remove the lost connections
+	if (nbConnectionsLost > 0)
+	{
+		auto isLost = [] (const User &u) {return u.lost;};
+		auto it = std::remove_if(m_clients.begin(),m_clients.end(),isLost);
+		m_clients.erase(it,m_clients.end());
+		std::cout << nbConnectionsLost << " connection(s) lost (now " << m_clients.size() << " clients connected)" << std::endl;
+	}
+}
+
+// SLOT PONG //////////////////////////////////////////////////////////////////
+void ApiWebSocketsServer::slotPong(quint64 elapsedTime, const QByteArray &payload)
+{
+	Q_UNUSED(elapsedTime)
+	Q_UNUSED(payload)
+	
+	QWebSocket *socket = qobject_cast<QWebSocket*>(sender());
+	if (!socket) {return;}
+
+	auto socketMatches = [socket] (const User &u) {return (u.socket == socket);};
+	auto userIt = std::find_if(m_clients.begin(),m_clients.end(),socketMatches);
+	if (userIt != m_clients.end()) {userIt->lastPong = QDateTime::currentDateTime();}
 }
 
 

@@ -9,6 +9,7 @@
 #include "Entry.h"
 class QWebSocketServer;
 class QWebSocket;
+class QTimer;
 
 enum class MsgType
 {
@@ -42,13 +43,19 @@ class ApiWebSocketsServer : public QObject
 		void slotNewConnection();
 		void slotProcessMessage(const QString &msg);
 		void slotSocketDisconnected();
+		void slotCheckAndPing();
+		void slotPong(quint64 elapsedTime, const QByteArray &payload);
 		
 		
 	private:
+		void fctSocketDisconnected(QWebSocket *socket);
 		struct User
 		{
 			QString name;
 			QWebSocket *socket;
+			QDateTime firstPing;
+			QDateTime lastPong;
+			bool lost;
 		};
 		
 		static MsgType getMessageType(const QJsonDocument &doc);
@@ -59,6 +66,11 @@ class ApiWebSocketsServer : public QObject
 		quint16 m_port;
 		QWebSocketServer *m_server;
 		std::list<User> m_clients;
+		QTimer *m_pingTimer;
+
+		const int dtPing = 5;
+		const int dtPingFirstCheck = 13;
+		const int dtPingThrFailure = 11;
 };
 
 
