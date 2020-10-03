@@ -17,7 +17,8 @@ document.querySelector("thead").addEventListener("click", () => {
 
 
 // CONNECT TO THE API, INIT THE WEBSOCKET /////////////////
-let websocket = new WebSocket("ws://localhost:1234");
+let host = (window.location.hostname.length > 0 ? window.location.hostname : "localhost");
+let websocket = new WebSocket("ws://" + host + ":1234");
 
 websocket.addEventListener("open", () => {
 	console.log("connected!");
