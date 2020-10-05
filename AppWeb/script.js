@@ -43,9 +43,21 @@ websocket.addEventListener("message", (e) => {
 	else if (data.type === "delete") {
 		deleteEntry(data.id);
 	}
-	else {
+	else if (Array.isArray(data)) {
 		for (let e of data) {
 			appendEntry(e.id,e.description,e.number,e.last_modif);
+		}
+	}
+	else if (data.type === "lock") {
+		if (data.status !== "success") {
+			setDialogVisible(false);
+			alert(`Lock request failed:\n${data.msg}`);
+		}
+	}
+	else if (data.type === "unlock") {
+		if (data.status !== "success") {
+			setDialogVisible(false);
+			alert(`Unlock request failed:\n${data.msg}`);
 		}
 	}
 });
@@ -78,6 +90,10 @@ buttonEdit.addEventListener("click", (e) => {
 	let selectedRow = document.querySelector("tbody tr.selected");
 	if (selectedRow == null) {return;}
 
+	// lock the entry to update
+	let id = parseInt(selectedRow.querySelector("td:nth-child(1)").innerHTML);
+	websocket.send(JSON.stringify({rqtType: "lock", rqtData: id}));
+
 	// fill and display the dialog
 	mode = "edit";
 	descriptionInput.value = selectedRow.querySelector("td:nth-child(2)").innerHTML;
@@ -89,8 +105,11 @@ buttonRemove.addEventListener("click", (e) => {
 	let selectedRow = document.querySelector("tbody tr.selected");
 	if (selectedRow == null) {return;}
 
-	// send delete request
+	// lock the entry to delete
 	let id = parseInt(selectedRow.querySelector("td:nth-child(1)").innerHTML);
+	websocket.send(JSON.stringify({rqtType: "lock", rqtData: id}));
+
+	// send delete request
 	websocket.send(JSON.stringify({rqtType: "delete", rqtData: id}));
 });
 
@@ -114,12 +133,24 @@ buttonOk.addEventListener("click", (e) => {
 		let id = parseInt(selectedRow.querySelector("td:nth-child(1)").innerHTML);
 		let data = {id: id, description: descriptionInput.value, number: parseInt(numberInput.value)};
 		websocket.send(JSON.stringify({rqtType: "update", rqtData: data}));
+
+		// unlock the updated entry
+		websocket.send(JSON.stringify({rqtType: "unlock", rqtData: id}));
 	}
 
 	mode = "none";
 });
 
 buttonCancel.addEventListener("click", (e) => {
+	if (mode === "edit") {
+		// unlock the entry being edited
+		let selectedRow = document.querySelector("tbody tr.selected");
+		if (selectedRow != null) {
+			let id = parseInt(selectedRow.querySelector("td:nth-child(1)").innerHTML);
+			websocket.send(JSON.stringify({rqtType: "unlock", rqtData: id}));
+		}
+	}
+
 	setDialogVisible(false);
 	mode = "none";
 });

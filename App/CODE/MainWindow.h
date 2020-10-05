@@ -15,9 +15,12 @@ class EntryTableModel;
 enum class MsgType
 {
 	AllData,
+	LockAnswer,
+	UnlockAnswer,
 	InsertNotification,
 	UpdateNotification,
 	DeleteNotification,
+	ErrorNotification,
 	Invalid
 };
 
@@ -36,6 +39,10 @@ class MainWindow : public QWidget
 
 		bool connectToDatabaseApi();
 		bool isConnected() const;
+
+
+	signals:
+		void lockUnlockAnswerProcessed();
 		
 		
 	private slots:
@@ -47,6 +54,11 @@ class MainWindow : public QWidget
 		
 		
 	private:
+		bool lockUnlockEntry(bool lock, int id, QString *errorMessage = nullptr);
+		int m_lockUnlockId;
+		QString m_lockUnlockStatus;
+		QString m_lockUnlockErrorMsg;
+
 		static MsgType getMessageType(const QJsonDocument &doc);
 
 		void createActions();

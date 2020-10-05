@@ -14,6 +14,8 @@ class QTimer;
 enum class MsgType
 {
 	UserName,
+	LockRequest,
+	UnlockRequest,
 	AllDataRequest,
 	InsertRequest,
 	UpdateRequest,
@@ -48,7 +50,6 @@ class ApiWebSocketsServer : public QObject
 		
 		
 	private:
-		void fctSocketDisconnected(QWebSocket *socket);
 		struct User
 		{
 			QString name;
@@ -57,15 +58,31 @@ class ApiWebSocketsServer : public QObject
 			QDateTime lastPong;
 			bool lost;
 		};
-		
+		struct UserShort
+		{
+			QString name;
+			QWebSocket *socket;
+		};
+
+		void processUserNameNotification(const QJsonObject &obj, QWebSocket *socket);
+		void processLockRequest(const QJsonObject &obj, QWebSocket *socket);
+		void processUnlockRequest(const QJsonObject &obj, QWebSocket *socket);
+		void processAllDataRequest(QWebSocket *socket);
+		void processInsertRequest(const QJsonObject &obj, QWebSocket *socket);
+		void processUpdateRequest(const QJsonObject &obj, QWebSocket *socket);
+		void processDeleteRequest(const QJsonObject &obj, QWebSocket *socket);
+
+		void releaseUserLocks(QWebSocket *socket);
+		bool userHasLock(int id, QWebSocket *socket);
+
 		static MsgType getMessageType(const QJsonDocument &doc);
-		static bool sendAllEntries(const QString &originalMsg, QWebSocket *socket);
 		static void sendErrorMessage(QWebSocket *socket, const QString &originalMsg, const QString &errorMessage);
 		static QString ethernetLocalIpAddress(bool ipv6 = false);
 
 		quint16 m_port;
 		QWebSocketServer *m_server;
 		std::list<User> m_clients;
+		std::map<int,UserShort> m_lockers; // key=entryId
 		QTimer *m_pingTimer;
 
 		const int dtPing = 5;

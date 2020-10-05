@@ -24,10 +24,19 @@ const QJsonDocument::JsonFormat format = QJsonDocument::Compact;
 //  SLOT SOCKET DISCONNECTED
 //  SLOT CHECK AND PING
 //  SLOT PONG
+//  RELEASE USER LOCKS
+//  USER HAS LOCK
 //
 //  SLOT PROCESS MESSAGE
 //  SEND ERROR MESSAGE
 //  GET MESSAGE TYPE
+//  PROCESS USER NAME NOTIFICATION
+//  PROCESS LOCK REQUEST
+//  PROCESS UNLOCK REQUEST
+//  PROCESS ALL DATA REQUEST
+//  PROCESS INSERT REQUEST
+//  PROCESS UPDATE REQUEST
+//  PROCESS DELETE REQUEST
 ///////////////////////////////////////////////////////////////////////////////
 
 
@@ -109,22 +118,20 @@ void ApiWebSocketsServer::slotNewConnection()
 	std::cout << "one connection (now " << m_clients.size() << " clients connected)" << std::endl;
 
 	// we send all the data to this client so that it inits with it
-	ApiWebSocketsServer::sendAllEntries("none (on connection)",socket);
+	this->processAllDataRequest(socket);
 }
 
 // SLOT SOCKET DISCONNECTED ///////////////////////////////////////////////////
 void ApiWebSocketsServer::slotSocketDisconnected()
 {
 	QWebSocket *socket = qobject_cast<QWebSocket*>(sender());
-	if (socket) {this->fctSocketDisconnected(socket);}
-}
+	if (!socket) {return;}
 
-void ApiWebSocketsServer::fctSocketDisconnected(QWebSocket *socket)
-{
 	auto socketMatches = [socket] (const User &u) {return (u.socket == socket);};
 	auto userIt = std::find_if(m_clients.begin(),m_clients.end(),socketMatches);
 	if (userIt != m_clients.end()) {m_clients.erase(userIt);}
-	
+
+	this->releaseUserLocks(socket);
 	socket->abort();
 	socket->deleteLater();
 	std::cout << "one disconnection (now " << m_clients.size() << " clients connected)" << std::endl;
@@ -149,6 +156,8 @@ void ApiWebSocketsServer::slotCheckAndPing()
 				QObject::disconnect(u.socket, SIGNAL(disconnected()),               this, SLOT(slotSocketDisconnected()));
 				QObject::disconnect(u.socket, SIGNAL(pong(quint64,QByteArray)),     this, SLOT(slotPong(quint64,QByteArray)));
 				u.lost = true;
+
+				this->releaseUserLocks(u.socket);
 				u.socket->abort();
 				u.socket->deleteLater();
 				nbConnectionsLost++;
@@ -185,6 +194,25 @@ void ApiWebSocketsServer::slotPong(quint64 elapsedTime, const QByteArray &payloa
 	if (userIt != m_clients.end()) {userIt->lastPong = QDateTime::currentDateTime();}
 }
 
+// RELEASE USER LOCKS /////////////////////////////////////////////////////////
+void ApiWebSocketsServer::releaseUserLocks(QWebSocket *socket)
+{
+	// release the locks from this socket
+	// remark: "erase_if" comes only with C++20
+	for (auto it=m_lockers.begin(); it != m_lockers.end(); )
+	{
+		if (it->second.socket == socket) {it = m_lockers.erase(it);}
+		else {++it;}
+	}
+}
+
+// USER HAS LOCK ON ///////////////////////////////////////////////////////////
+bool ApiWebSocketsServer::userHasLock(int id, QWebSocket *socket)
+{
+	if (m_lockers.count(id) == 0) {return false;}
+	return (m_lockers[id].socket == socket);
+}
+
 
 
 
@@ -212,101 +240,24 @@ void ApiWebSocketsServer::slotProcessMessage(const QString &msg)
 	}
 
 	QJsonObject object = jsonDoc.object();
-	if (msgType == MsgType::UserName)
-	{
-		// This type of message is sent by the client just after the connection.
-		// It allows the association of the socket with a user name.
-		QString userName = object["userName"].toString();
-		auto socketMatches = [socket] (const User &u) {return (u.socket == socket);};
-		auto userIt = std::find_if(m_clients.begin(),m_clients.end(),socketMatches);
-		if (userIt != m_clients.end()) {userIt->name = userName;}
-	}
-	else if (msgType == MsgType::AllDataRequest)
-	{
-		// This type of message is sent by the client just after the connection.
-		// The client will use the answer to init its data
-		ApiWebSocketsServer::sendAllEntries(msg,socket);
-	}
-	else if (msgType == MsgType::InsertRequest)
-	{
-		// extract the data from the message
-		QString desc = object["rqtData"].toObject().value("description").toString();
-		int number = object["rqtData"].toObject().value("number").toDouble();
-
-		// insert it into the database
-		QString errorMessage;
-		Entry e = SqlInterface::insertEntry(desc,number,&errorMessage);
-		if (e.id == 0 || errorMessage != "")
-		{
-			ApiWebSocketsServer::sendErrorMessage(socket,msg,errorMessage);
-			return;
-		}
-
-		// notify all the users
-		QJsonObject obj{{"type","insert"},{"entry",e.toJsonObject()}};
-		QString msg2 = QJsonDocument{obj}.toJson(format);
-		for (const User &u : m_clients) {u.socket->sendTextMessage(msg2);}
-	}
-	else if (msgType == MsgType::UpdateRequest)
-	{
-		// get the data from the message
-		int id = object["rqtData"].toObject().value("id").toDouble();
-		QString desc = object["rqtData"].toObject().value("description").toString();
-		int number = object["rqtData"].toObject().value("number").toDouble();
-
-		// update the entry in the database
-		QString errorMessage;
-		Entry e = SqlInterface::updateEntry(id,desc,number,&errorMessage);
-		if (e.id == 0 || errorMessage != "")
-		{
-			ApiWebSocketsServer::sendErrorMessage(socket,msg,errorMessage);
-			return;
-		}
-
-		// notify all the users
-		QJsonObject obj{{"type","update"},{"entry",e.toJsonObject()}};
-		QString msg2 = QJsonDocument{obj}.toJson(format);
-		for (const User &u : m_clients) {u.socket->sendTextMessage(msg2);}
-	}
-	else if (msgType == MsgType::DeleteRequest)
-	{
-		int id = object["rqtData"].toDouble();
-		QString errorMessage;
-		if (!SqlInterface::deleteEntry(id,&errorMessage))
-		{
-			ApiWebSocketsServer::sendErrorMessage(socket,msg,errorMessage);
-			return;
-		}
-
-		// notify all the users
-		QJsonObject obj{{"type","delete"},{"id",id}};
-		QString msg2 = QJsonDocument{obj}.toJson(format);
-		for (const User &u : m_clients) {u.socket->sendTextMessage(msg2);}
-	}
-}
-
-// SEND ALL ENTRIES ///////////////////////////////////////////////////////////
-bool ApiWebSocketsServer::sendAllEntries(const QString &originalMsg, QWebSocket *socket)
-{
-	if (!socket) {return false;}
-	QString errorMessage;
-	std::vector<Entry> entries = SqlInterface::getEntries(&errorMessage);
-	if (errorMessage != "")
-	{
-		ApiWebSocketsServer::sendErrorMessage(socket,originalMsg,errorMessage);
-		return false;
-	}
-
-	QJsonArray array;
-	for (const Entry &e : entries) {array.push_back(e.toJsonObject());}
-	socket->sendTextMessage(QJsonDocument{array}.toJson(format));
-	return true;
+	
+	if (msgType == MsgType::UserName)            {this->processUserNameNotification(object,socket);}
+	else if (msgType == MsgType::LockRequest)    {this->processLockRequest(object,socket);}
+	else if (msgType == MsgType::UnlockRequest)  {this->processUnlockRequest(object,socket);}
+	else if (msgType == MsgType::AllDataRequest) {this->processAllDataRequest(socket);}
+	else if (msgType == MsgType::InsertRequest)  {this->processInsertRequest(object,socket);}
+	else if (msgType == MsgType::UpdateRequest)  {this->processUpdateRequest(object,socket);}
+	else if (msgType == MsgType::DeleteRequest)  {this->processDeleteRequest(object,socket);}
 }
 
 /*
 the original messages should be like this:
 {
 	"userName": "myPseudo"
+}
+{
+	"rqtType": "(un)lock",
+	"rqtData": 2
 }
 {
 	"rqtType": "getData",
@@ -354,6 +305,8 @@ MsgType ApiWebSocketsServer::getMessageType(const QJsonDocument &doc)
 	QString rqtType = obj["rqtType"].toString();
 	const QJsonValue &rqtData = obj["rqtData"];
 
+	if (rqtType == "lock" && rqtData.isDouble()) {return MsgType::LockRequest;}
+	if (rqtType == "unlock" && rqtData.isDouble()) {return MsgType::UnlockRequest;}
 	if (rqtType == "getData") {return MsgType::AllDataRequest;}
 
 	if (rqtType == "insert")
@@ -383,5 +336,164 @@ MsgType ApiWebSocketsServer::getMessageType(const QJsonDocument &doc)
 	}
 
 	return MsgType::Invalid;
+}
+
+// PROCESS USER NAME NOTIFICATION /////////////////////////////////////////////
+void ApiWebSocketsServer::processUserNameNotification(const QJsonObject &obj, QWebSocket *socket)
+{
+	// This type of message is sent by the client just after the connection.
+	// It allows the association of the socket with a user name.
+	QString userName = obj["userName"].toString();
+	auto socketMatches = [socket] (const User &u) {return (u.socket == socket);};
+	auto userIt = std::find_if(m_clients.begin(),m_clients.end(),socketMatches);
+	if (userIt != m_clients.end()) {userIt->name = userName;}
+}
+
+// PROCESS LOCK REQUEST ///////////////////////////////////////////////////////
+void ApiWebSocketsServer::processLockRequest(const QJsonObject &obj, QWebSocket *socket)
+{
+	int id = obj["rqtData"].toInt();
+	if (m_lockers.count(id) > 0)
+	{
+		QString errorMessage = "The id #" + QString::number(id) + " is already locked by " + m_lockers[id].name;
+		QJsonObject answer{{"type","lock"},{"id",id},{"status","failure"},{"msg",errorMessage}};
+		socket->sendTextMessage(QJsonDocument{answer}.toJson(format));
+		return;
+	}
+	
+	auto socketMatches = [socket] (const User &u) {return (u.socket == socket);};
+	auto userIt = std::find_if(m_clients.begin(),m_clients.end(),socketMatches);
+	if (userIt == m_clients.end()) {return;}
+
+	m_lockers[id] = UserShort{userIt->name,userIt->socket};
+	QJsonObject answer{{"type","lock"},{"id",id},{"status","success"}};
+	socket->sendTextMessage(QJsonDocument{answer}.toJson(format));
+}
+
+// PROCESS UNLOCK REQUEST /////////////////////////////////////////////////////
+void ApiWebSocketsServer::processUnlockRequest(const QJsonObject &obj, QWebSocket *socket)
+{
+	int id = obj["rqtData"].toInt();
+	if (m_lockers.count(id) == 0)
+	{
+		QString errorMessage = "The id #" + QString::number(id) + " is not locked";
+		QJsonObject answer{{"type","unlock"},{"id",id},{"status","failure"},{"msg",errorMessage}};
+		socket->sendTextMessage(QJsonDocument{answer}.toJson(format));
+		return;
+	}
+
+	if (m_lockers[id].socket != socket)
+	{
+		QString errorMessage = "The id #" + QString::number(id) + " is not locked from this connection";
+		QJsonObject answer{{"type","unlock"},{"id",id},{"status","failure"},{"msg",errorMessage}};
+		socket->sendTextMessage(QJsonDocument{answer}.toJson(format));
+		return;
+	}
+
+	m_lockers.erase(id);
+	QJsonObject answer{{"type","unlock"},{"id",id},{"status","success"}};
+	socket->sendTextMessage(QJsonDocument{answer}.toJson(format));
+}
+
+// PROCESS ALL DATA REQUEST ///////////////////////////////////////////////////
+void ApiWebSocketsServer::processAllDataRequest(QWebSocket *socket)
+{
+	// This type of message is sent by the client just after the connection.
+	// The client will use the answer to init its data
+	
+	QString errorMessage;
+	std::vector<Entry> entries = SqlInterface::getEntries(&errorMessage);
+	if (errorMessage != "")
+	{
+		ApiWebSocketsServer::sendErrorMessage(socket,"getAllData request",errorMessage);
+		return;
+	}
+
+	QJsonArray array;
+	for (const Entry &e : entries) {array.push_back(e.toJsonObject());}
+	socket->sendTextMessage(QJsonDocument{array}.toJson(format));
+}
+
+// PROCESS INSERT REQUEST /////////////////////////////////////////////////////
+void ApiWebSocketsServer::processInsertRequest(const QJsonObject &obj, QWebSocket *socket)
+{
+	// extract the data from the message
+	QString desc = obj["rqtData"].toObject().value("description").toString();
+	int number = obj["rqtData"].toObject().value("number").toDouble();
+
+	// insert it into the database
+	QString errorMessage;
+	Entry e = SqlInterface::insertEntry(desc,number,&errorMessage);
+	if (e.id == 0 || errorMessage != "")
+	{
+		ApiWebSocketsServer::sendErrorMessage(socket,"insert request",errorMessage);
+		return;
+	}
+
+	// notify all the users
+	QJsonObject answerObj{{"type","insert"},{"entry",e.toJsonObject()}};
+	QString answer = QJsonDocument{answerObj}.toJson(format);
+	for (const User &u : m_clients) {u.socket->sendTextMessage(answer);}
+}
+
+// PROCESS UPDATE REQUEST /////////////////////////////////////////////////////
+void ApiWebSocketsServer::processUpdateRequest(const QJsonObject &obj, QWebSocket *socket)
+{
+	// get the data from the message
+	int id = obj["rqtData"].toObject().value("id").toDouble();
+	QString desc = obj["rqtData"].toObject().value("description").toString();
+	int number = obj["rqtData"].toObject().value("number").toDouble();
+
+	// check the user has a lock on it
+	if (!this->userHasLock(id,socket))
+	{
+		QString errorMessage = "You need to lock this entry to update it";
+		ApiWebSocketsServer::sendErrorMessage(socket,"update request",errorMessage);
+		return;
+	}
+
+	// update the entry in the database
+	QString errorMessage;
+	Entry e = SqlInterface::updateEntry(id,desc,number,&errorMessage);
+	if (e.id == 0 || errorMessage != "")
+	{
+		ApiWebSocketsServer::sendErrorMessage(socket,"update request",errorMessage);
+		return;
+	}
+
+	// notify all the users
+	QJsonObject answerObj{{"type","update"},{"entry",e.toJsonObject()}};
+	QString answer = QJsonDocument{answerObj}.toJson(format);
+	for (const User &u : m_clients) {u.socket->sendTextMessage(answer);}
+}
+
+// PROCESS DELETE REQUEST /////////////////////////////////////////////////////
+void ApiWebSocketsServer::processDeleteRequest(const QJsonObject &obj, QWebSocket *socket)
+{
+	int id = obj["rqtData"].toDouble();
+
+	// check the user has a lock on it
+	if (!this->userHasLock(id,socket))
+	{
+		QString errorMessage = "You need to lock this entry to delete it";
+		ApiWebSocketsServer::sendErrorMessage(socket,"delete request",errorMessage);
+		return;
+	}
+
+	// delete it
+	QString errorMessage;
+	if (!SqlInterface::deleteEntry(id,&errorMessage))
+	{
+		ApiWebSocketsServer::sendErrorMessage(socket,"delete request",errorMessage);
+		return;
+	}
+
+	// delete the lock
+	m_lockers.erase(id);
+
+	// notify all the users
+	QJsonObject answerObj{{"type","delete"},{"id",id}};
+	QString answer = QJsonDocument{answerObj}.toJson(format);
+	for (const User &u : m_clients) {u.socket->sendTextMessage(answer);}
 }
 
