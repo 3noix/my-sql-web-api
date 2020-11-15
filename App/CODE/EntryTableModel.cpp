@@ -41,7 +41,7 @@ QVariant EntryTableModel::data(const QModelIndex &index, int role) const
 		else if (col == Columns::Number)
 			return m_data[row].number;
 		else if (col == Columns::LastModif)
-			return m_data[row].last_modif;
+			return m_data[row].last_modif.toString("dd/MM/yyyy hh:mm:ss");
 	}
 	else if (role == Qt::TextAlignmentRole)
 	{

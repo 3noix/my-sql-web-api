@@ -3,13 +3,34 @@ let buttonAdd = document.querySelector("#add");
 let buttonEdit = document.querySelector("#edit");
 let buttonRemove = document.querySelector("#remove");
 
+let idInput = document.querySelector("#id");
 let descriptionInput = document.querySelector("#desc");
 let numberInput = document.querySelector("#number");
 let buttonOk = document.querySelector("#ok");
 let buttonCancel = document.querySelector("#cancel");
 
+// SET DIALOG VISIBLE /////////////////////////////////////
+let setDialogVisible = (bVisible) => {
+	if (bVisible) {
+		document.querySelector("form").style.display = "flex";
+		document.querySelector(".background").style.display = "block";
+	}
+	else {
+		document.querySelector("form").style.display = "none";
+		document.querySelector(".background").style.display = "none";
+	}
+};
+
+// SET BUTTONS ENABLED ////////////////////////////////////
+let setButtonsEnabled = (bEnabled) => {
+	buttonAdd.disabled = !bEnabled;
+	buttonEdit.disabled = !bEnabled;
+	buttonRemove.disabled = !bEnabled;
+};
+
 
 // INIT ///////////////////////////////////////////////////
+setButtonsEnabled(false);
 let mode = "none";
 document.querySelector("thead").addEventListener("click", () => {
 	for (let tr of document.querySelectorAll("tbody tr")) {tr.classList.remove("selected");}
@@ -22,11 +43,7 @@ let websocket = new WebSocket("ws://" + host + ":1234");
 
 websocket.addEventListener("open", () => {
 	console.log("connected!");
-
-	buttonAdd.disabled = false;
-	buttonEdit.disabled = false;
-	buttonRemove.disabled = false;
-
+	setButtonsEnabled(true);
 	websocket.send(JSON.stringify({userName: "3noix"})); // send the pseudo
 });
 
@@ -34,44 +51,43 @@ websocket.addEventListener("message", (e) => {
 	let data = JSON.parse(e.data);
 	if (data.type === "insert") {
 		let e = data.entry;
-		appendEntry(e.id,e.description,e.number,e.last_modif);
+		appendEntryInHtml(e.id,e.description,e.number,e.last_modif);
 	}
 	else if (data.type === "update") {
 		let e = data.entry;
-		updateEntry(e.id,e.description,e.number,e.last_modif);
+		updateEntryInHtml(e.id,e.description,e.number,e.last_modif);
 	}
 	else if (data.type === "delete") {
-		deleteEntry(data.id);
+		deleteEntryInHtml(data.id);
 	}
 	else if (Array.isArray(data)) {
 		for (let e of data) {
-			appendEntry(e.id,e.description,e.number,e.last_modif);
+			appendEntryInHtml(e.id,e.description,e.number,e.last_modif);
 		}
 	}
 	else if (data.type === "lock") {
 		if (data.status !== "success") {
-			setDialogVisible(false);
 			alert(`Lock request failed:\n${data.msg}`);
+		}
+		else if (data.id === parseInt(idInput.value) && mode === "edit") {
+			setDialogVisible(true);
 		}
 	}
 	else if (data.type === "unlock") {
 		if (data.status !== "success") {
-			setDialogVisible(false);
 			alert(`Unlock request failed:\n${data.msg}`);
 		}
 	}
 });
 
 websocket.addEventListener("error", (e) => {
-	console.log("error: " + e.data);
+	// console.log("Error: " + e.data);
+	alert(`Error:\n${e.data}`);
 });
 
 websocket.addEventListener("close", (e) => {
 	console.log("disconnected!");
-
-	buttonAdd.disabled = true;
-	buttonEdit.disabled = true;
-	buttonRemove.disabled = true;
+	setButtonsEnabled(false);
 });
 
 
@@ -81,6 +97,7 @@ websocket.addEventListener("close", (e) => {
 buttonAdd.addEventListener("click", (e) => {
 	// reset and display the dialog
 	mode = "add";
+	idInput.value = 0;
 	descriptionInput.value = "";
 	numberInput.value = 0;
 	setDialogVisible(true);
@@ -96,9 +113,9 @@ buttonEdit.addEventListener("click", (e) => {
 
 	// fill and display the dialog
 	mode = "edit";
+	idInput.value = id;
 	descriptionInput.value = selectedRow.querySelector("td:nth-child(2)").innerHTML;
 	numberInput.value = selectedRow.querySelector("td:nth-child(3)").innerHTML;
-	setDialogVisible(true);
 });
 
 buttonRemove.addEventListener("click", (e) => {
@@ -123,14 +140,10 @@ buttonOk.addEventListener("click", (e) => {
 	
 	if (mode === "add") {
 		let data = {description: descriptionInput.value, number: parseInt(numberInput.value)};
-		let msg = JSON.stringify({rqtType: "insert", rqtData: data});
-		websocket.send(msg);
+		websocket.send(JSON.stringify({rqtType: "insert", rqtData: data}));
 	}
 	else if (mode === "edit") {
-		let selectedRow = document.querySelector("tbody tr.selected");
-		if (selectedRow == null) {return;}
-
-		let id = parseInt(selectedRow.querySelector("td:nth-child(1)").innerHTML);
+		let id = parseInt(idInput.value);
 		let data = {id: id, description: descriptionInput.value, number: parseInt(numberInput.value)};
 		websocket.send(JSON.stringify({rqtType: "update", rqtData: data}));
 
@@ -144,11 +157,7 @@ buttonOk.addEventListener("click", (e) => {
 buttonCancel.addEventListener("click", (e) => {
 	if (mode === "edit") {
 		// unlock the entry being edited
-		let selectedRow = document.querySelector("tbody tr.selected");
-		if (selectedRow != null) {
-			let id = parseInt(selectedRow.querySelector("td:nth-child(1)").innerHTML);
-			websocket.send(JSON.stringify({rqtType: "unlock", rqtData: id}));
-		}
+		websocket.send(JSON.stringify({rqtType: "unlock", rqtData: parseInt(idInput.value)}));
 	}
 
 	setDialogVisible(false);
@@ -158,8 +167,8 @@ buttonCancel.addEventListener("click", (e) => {
 
 
 
-// APPEND ENTRY ///////////////////////////////////////////
-let appendEntry = (id, description, number, datetime) => {
+// APPEND ENTRY IN HTML ///////////////////////////////////
+let appendEntryInHtml = (id, description, number, datetime) => {
 	let line = document.createElement("tr");
 	let col1 = document.createElement("td");
 	let col2 = document.createElement("td");
@@ -181,8 +190,8 @@ let appendEntry = (id, description, number, datetime) => {
 	});
 };
 
-// UPDATE ENTRY ///////////////////////////////////////////
-let updateEntry = (id, description, number, datetime) => {
+// UPDATE ENTRY IN HTML ///////////////////////////////////
+let updateEntryInHtml = (id, description, number, datetime) => {
 	let elt = getEntryHtmlElt(id);
 	if (elt == null) {return false;}
 
@@ -192,8 +201,8 @@ let updateEntry = (id, description, number, datetime) => {
 	return true;
 };
 
-// DELETE ENTRY ///////////////////////////////////////////
-let deleteEntry = (id) => {
+// DELETE ENTRY IN HTML ///////////////////////////////////
+let deleteEntryInHtml = (id) => {
 	let elt = getEntryHtmlElt(id);
 	if (elt == null) {return false;}
 	elt.remove();
@@ -207,18 +216,5 @@ let getEntryHtmlElt = (id) => {
 		if (currentId === id) {return htmlRow;}
 	}
 	return null;
-};
-
-// SET DIALOG VISIBLE /////////////////////////////////////
-let setDialogVisible = (bVisible) => {
-	if (bVisible) {
-		document.querySelector("form").style.display = "flex";
-		// document.querySelector(".background").style.display = "flex";
-		document.querySelector(".background").style.display = "block";
-	}
-	else {
-		document.querySelector("form").style.display = "none";
-		document.querySelector(".background").style.display = "none";
-	}
 };
 
