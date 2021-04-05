@@ -1,0 +1,29 @@
+table {
+	margin: 5px;
+	border-collapse: collapse;
+	border-radius: 5px;
+	overflow: hidden;
+
+	border: 1px solid black;
+	padding: 5px 10px;
+	text-align: center;
+	user-select: none;
+	& th {
+		height: 40px;
+		min-width: 30px;
+		border: 1px solid black;
+		padding: 5px 10px;
+	}
+	& tr.selected {
+		background: rgba(0,255,0,0.2);
+	}
+	& td {
+		height: 30px;
+		border: 1px solid black;
+		padding: 5px 10px;
+		&:nth-child(2) {
+			text-align: left;
+		}
+	}
+}
+
