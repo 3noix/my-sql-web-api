@@ -2,7 +2,7 @@ import {useState, useEffect} from 'react';
 import styled from 'styled-components';
 import Button from './Button';
 import Table from './Table';
-import ModalForm from './ModalForm';
+import FormAddEdit from './FormAddEdit';
 
 
 const Root = styled.div`
@@ -130,7 +130,7 @@ export default function App() {
 					selectRow={selectRow}
 				/>
 			</Main>
-			<ModalForm
+			<FormAddEdit
 				isOpen={modalOpen}
 				data={modalData}
 				setData={setModalData}

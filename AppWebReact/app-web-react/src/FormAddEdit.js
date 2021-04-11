@@ -1,32 +1,32 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import './ModalForm.scss';
+import './FormAddEdit.scss';
 
 
-export default function ModalForm({isOpen, data, setData, onOk, onCancel}) {
+export default function FormAddEdit({isOpen, data, setData, onOk, onCancel}) {
 	if (!isOpen) {return null;}
 
 	return ReactDOM.createPortal(
 		<div className="background">
 			<form>
-				<div>
+				<div className="for-field">
 					<label htmlFor="description">Description:</label>
 					<input type="text" name="description" id="description"
 						value={data.description}
 						onChange={handleDescriptionChange}
 					/>
 				</div>
-				<div>
+				<div className="for-field">
 					<label htmlFor="number">Number:</label>
-					<input type="number" name="number" id="number"
-						value={data.number}
+					<input type="type" pattern="[0-9]+" name="number" id="number"
+						value={Number.isNaN(data.number) ? "" : data.number}
 						onChange={handleNumberChange}
 					/>
 				</div>
-				<div>
+				<div className="for-buttons">
 					<button type="button" id="ok" onClick={handleOk}>Ok</button>
-					<button type="button" id="cancel" onClick={onCancel}>Cancel</button>
 				</div>
+				<div className="close-button" onClick={onCancel}/>
 			</form>
 		</div>,
 		document.getElementById("portal")
@@ -43,7 +43,8 @@ export default function ModalForm({isOpen, data, setData, onOk, onCancel}) {
 	}
 
 	function handleOk() {
-		if (data.description.length === 0 || data.number === 0) {return;}
+		if (data.description.length === 0) {return;}
+		if (Number.isNaN(data.number) || data.number === 0) {return;}
 		onOk();
 	}
 }

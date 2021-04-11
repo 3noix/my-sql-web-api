@@ -1,88 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;700&display=swap');
-
-* {
-	box-sizing: border-box;
-	margin: 0;
-	padding: 0;
-}
-
-body {
-	height: 100vh;
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	justify-content: center;
-	background: linear-gradient(45deg, #49a09d, #5f2c82);
-	font-family: 'Noto Sans JP', sans-serif;
-	font-weight: 100;
-	font-size: 1.1rem;
-}
-
-#root {
-	display: flex;
-	flex-direction: row;
-}
-
-section {
-	width: 50px;
-	display: flex;
-	flex-direction: column;
-	justify-content: flex-start;
-	align-items: center;
-}
-
-main {
-	width: calc(100% - 50px);
-}
-
-section button {
-	margin: 5px;
-	width: 30px;
-	height: 30px;
-	border: 1px solid white;
-	background: none;
-	border-radius: 5px;
-	cursor: pointer;
-	& i {
-		color: white;
-	}
-}
-
-table {
-	margin: 5px;
-	border-collapse: collapse;
-	border-radius: 5px;
-	overflow: hidden;
-
-	border: 1px solid white;
-	padding: 5px 10px;
-	text-align: center;
-	user-select: none;
-	& th {
-		height: 40px;
-		min-width: 30px;
-		border: 1px solid white;
-		padding: 10px 15px;
-		color: white;
-		font-weight: 700;
-	}
-	& tr.selected {
-		background: rgba(0,255,0,0.15);
-	}
-	& td {
-		height: 30px;
-		border: 1px solid white;
-		padding: 10px 15px;
-		color: white;
-		&:nth-child(2) {
-			text-align: left;
-		}
-	}
-}
-
-
 .background {
-	display: none;
 	position: fixed;
 	top: 0;
 	bottom: 0;
@@ -90,16 +6,13 @@ table {
 	right: 0;
 	background: rgba(0,0,0,0.5);
 	z-index: 1;
+	display: flex;
 	justify-content: center;
 	align-items: center;
 
 	& form {
-		// use this absolute positioning if the parent item display is block in the js file
 		position: relative;
-		top: 20px;
-		left: 20px;
-
-		display: none;
+		display: flex;
 		flex-direction: column;
 		justify-content: space-evenly;
 		width: 400px;

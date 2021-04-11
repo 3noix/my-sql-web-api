@@ -8,42 +8,44 @@
 	<script src="script.js" defer></script>
 </head>
 <body>
-	<section>
-		<button type="button" id="add" disabled><i class="fas fa-plus"></i></button>
-		<button type="button" id="edit" disabled><i class="fas fa-pencil-alt"></i></button>
-		<button type="button" id="remove" disabled><i class="fas fa-minus"></i></button>
-	</section>
-	<main>
-		<table>
-			<thead>
-				<tr>
-					<th>Id</th>
-					<th>Description</th>
-					<th>Number</th>
-					<th>Last modif</th>
-				</tr>
-			</thead>
-			<tbody></tbody>
-		</table>
-	</main>
+	<div id="root">
+		<section>
+			<button type="button" id="add" disabled><i class="fas fa-plus"></i></button>
+			<button type="button" id="edit" disabled><i class="fas fa-pencil-alt"></i></button>
+			<button type="button" id="remove" disabled><i class="fas fa-minus"></i></button>
+		</section>
+		<main>
+			<table>
+				<thead>
+					<tr>
+						<th>Id</th>
+						<th>Description</th>
+						<th>Number</th>
+						<th>Last modif</th>
+					</tr>
+				</thead>
+				<tbody></tbody>
+			</table>
+		</main>
+	</div>
 	<div class="background">
 		<form>
 			<div hidden>
 				<label for="id" hidden>Id:</label>
 				<input type="number" name="id" id="id" hidden>
 			</div>
-			<div>
+			<div class="for-field">
 				<label for="desc">Description:</label>
 				<input type="text" name="desc" id="desc">
 			</div>
-			<div>
+			<div class="for-field">
 				<label for="number">Number:</label>
 				<input type="number" name="number" id="number">
 			</div>
-			<div>
+			<div class="for-buttons">
 				<button type="button" id="ok">Ok</button>
-				<button type="button" id="cancel">Cancel</button>
 			</div>
+			<div class="close-button" id="cancel"></div>
 		</form>
 	</div>
 </body>
