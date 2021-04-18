@@ -1,7 +1,8 @@
-import {useState, useEffect} from 'react';
+import {useState, useEffect, useRef} from 'react';
 import styled from 'styled-components';
 import Button from './Button';
 import Table from './Table';
+import FormLogin from './FormLogin';
 import FormAddEdit from './FormAddEdit';
 
 
@@ -29,22 +30,29 @@ let defaultModalData = {id: 0, description: "", number: 0};
 
 
 export default function App() {
-	const [isConnected, setConnected] = useState(false);
-	const [entries,     setEntries]   = useState([]);
-	const [modalOpen,   setModalOpen] = useState(false);
-	const [modalMode,   setModalMode] = useState("");
-	const [modalData,   setModalData] = useState(defaultModalData);
+	const [login,            setLogin]            = useState("");
+	const [modalLoginOpen,   setModalLoginOpen]   = useState(true);
+	const [isConnected,      setConnected]        = useState(false);
+	const [entries,          setEntries]          = useState([]);
+	const [modalAddEditOpen, setModalAddEditOpen] = useState(false);
+	const [modalAddEditMode, setModalAddEditMode] = useState("");
+	const [modalAddEditData, setModalAddEditData] = useState(defaultModalData);
 
 	// useEffect(() => {
 	// 	count++;
 	// 	console.log("render",count);
 	// });
 
+	const loginRef = useRef(login);
+	loginRef.current = login;
+
 	useEffect(() => {
+		if (modalLoginOpen) {return;}
+
 		function onWsOpen(event) {
 			console.log("connected!");
 			setConnected(true);
-			websocket.send(JSON.stringify({userName: "3noix"})); // send the pseudo
+			websocket.send(JSON.stringify({userName: loginRef.current})); // send the pseudo
 		}
 	
 		function onWsError(event) {
@@ -82,12 +90,12 @@ export default function App() {
 			else if (data.type === "lock") {
 				if (data.status !== "success") {
 					alert(`Lock request failed:\n${data.msg}`);
-					setModalOpen(false);
-					setModalMode("");
-					setModalData(defaultModalData);
+					setModalAddEditOpen(false);
+					setModalAddEditMode("");
+					setModalAddEditData(defaultModalData);
 				}
-				// else if (data.id === modalData.id && modalMode === "edit") {
-				// 	setModalOpen(true); // if we wait the lock confirmation to show the dialog
+				// else if (data.id === modalAddEditData.id && modalAddEditMode === "edit") {
+				// 	setModalAddEditOpen(true); // if we wait the lock confirmation to show the dialog
 				// }
 			}
 			else if (data.type === "unlock") {
@@ -113,7 +121,7 @@ export default function App() {
 			websocket.removeEventListener("error",   onWsError);
 			websocket.removeEventListener("message", onWsMessage);
 		}
-	}, []);
+	}, [modalLoginOpen]);
 
 
 	return (
@@ -130,12 +138,18 @@ export default function App() {
 					selectRow={selectRow}
 				/>
 			</Main>
+			<FormLogin
+				isOpen={modalLoginOpen}
+				login={login}
+				setLogin={setLogin}
+				onOk={() => setModalLoginOpen(false)}
+			/>
 			<FormAddEdit
-				isOpen={modalOpen}
-				data={modalData}
-				setData={setModalData}
-				onOk={handleOk}
-				onCancel={handleCancel}
+				isOpen={modalAddEditOpen}
+				data={modalAddEditData}
+				setData={setModalAddEditData}
+				onOk={handleAddEditOk}
+				onCancel={handleAddEditCancel}
 			/>
 		</Root>
 	);
@@ -151,40 +165,40 @@ export default function App() {
 		setEntries(prevEntries => prevEntries.map(deselectEntry));
 	}
 
-	function handleCancel() {
-		if (modalMode === "edit") {
+	function handleAddEditCancel() {
+		if (modalAddEditMode === "edit") {
 			// unlock the entry being edited
-			websocket.send(JSON.stringify({rqtType: "unlock", rqtData: modalData.id}));
+			websocket.send(JSON.stringify({rqtType: "unlock", rqtData: modalAddEditData.id}));
 		}
 
 		// close and reset everything
-		setModalOpen(false);
-		setModalMode("");
-		setModalData(defaultModalData);
+		setModalAddEditOpen(false);
+		setModalAddEditMode("");
+		setModalAddEditData(defaultModalData);
 	}
 
-	function handleOk() {
-		// remark: the input (i.e. modalData) is checked inside the dialog
-		setModalOpen(false);
+	function handleAddEditOk() {
+		// remark: the input (i.e. modalAddEditData) is checked inside the dialog
+		setModalAddEditOpen(false);
 
-		if (modalMode === "add") {
-			let data = {description: modalData.description, number: modalData.number};
+		if (modalAddEditMode === "add") {
+			let data = {description: modalAddEditData.description, number: modalAddEditData.number};
 			websocket.send(JSON.stringify({rqtType: "insert", rqtData: data}));
 		}
-		else if (modalMode === "edit") {
+		else if (modalAddEditMode === "edit") {
 			// update the entry and unlock it
-			websocket.send(JSON.stringify({rqtType: "update", rqtData: modalData}));
-			websocket.send(JSON.stringify({rqtType: "unlock", rqtData: modalData.id}));
+			websocket.send(JSON.stringify({rqtType: "update", rqtData: modalAddEditData}));
+			websocket.send(JSON.stringify({rqtType: "unlock", rqtData: modalAddEditData.id}));
 		}
 
-		setModalMode("");
-		setModalData(defaultModalData);
+		setModalAddEditMode("");
+		setModalAddEditData(defaultModalData);
 	}
 
 	function addNewEntry() {
-		setModalOpen(true);
-		setModalMode("add");
-		setModalData(defaultModalData);
+		setModalAddEditOpen(true);
+		setModalAddEditMode("add");
+		setModalAddEditData(defaultModalData);
 	}
 
 	function updateEntry() {
@@ -195,9 +209,9 @@ export default function App() {
 		websocket.send(JSON.stringify({rqtType: "lock", rqtData: selectedEntry.id}));
 		
 		// fill and show the dialog data
-		setModalMode("edit");
-		setModalData({id: selectedEntry.id, description: selectedEntry.description, number: selectedEntry.number});
-		setModalOpen(true);
+		setModalAddEditMode("edit");
+		setModalAddEditData({id: selectedEntry.id, description: selectedEntry.description, number: selectedEntry.number});
+		setModalAddEditOpen(true);
 	}
 
 	function deleteEntry() {

@@ -1,10 +1,10 @@
-form.add-edit {
+form.login {
 	position: relative;
 	display: flex;
 	flex-direction: column;
 	justify-content: space-evenly;
 	width: 400px;
-	height: 200px;
+	height: 150px;
 	padding: 10px;
 	background: rgb(240,240,240);
 	z-index: 2;
@@ -13,22 +13,17 @@ form.add-edit {
 		width: 100%;
 		padding: 5px;
 		& label {
-			display: inline-block;
+			display: block;
 			color: #333;
-			width: 100px;
-			margin-right: 10px;
 		}
 		& input {
-			display: inline-block;
-			width: 260px;
+			display: block;
+			width: 100%;
 			color: gray;
 			background-color: transparent;
 			border: 1px solid rgba(0,0,0,0.2);
 			padding: 10px 10px;
 			outline: none;
-		}
-		&:first-child {
-			margin-top: 25px;
 		}
 	}
 	& div.for-buttons {
@@ -43,29 +38,6 @@ form.add-edit {
 			border: none;
 			margin: 0px 15px;
 			cursor: pointer;
-		}
-	}
-	& div.close-button {
-		position: absolute;
-		right: 5px;
-		top: 5px;
-		width: 25px;
-		height: 25px;
-		cursor: pointer;
-		&::before, &::after {
-			content: "";
-			position: absolute;
-			left: calc(50% - 1px);
-			top: 0;
-			width: 2px;
-			height: 32px;
-			background-color: #333;
-		}
-		&::before {
-			transform: translateY(-3px) rotate(45deg);
-		}
-		&::after {
-			transform: translateY(-3px) rotate(-45deg);
 		}
 	}
 }
