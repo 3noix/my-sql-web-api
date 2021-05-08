@@ -6,6 +6,7 @@ import FormLogin from './FormLogin';
 import FormAddEdit from './FormAddEdit';
 import useWebSocket from './useWebSocket';
 import useMemorization from './useMemorization';
+import useEntries from './useEntries';
 
 
 const Root = styled.div`
@@ -38,32 +39,27 @@ export default function App() {
 
 	const [login,            setLogin]            = useState("");
 	const [modalLoginOpen,   setModalLoginOpen]   = useState(true);
-	const [entries,          setEntries]          = useState([]);
 	const [selectedEntryId,  setSelectedEntryId]  = useState(-1);
 	const [modalAddEditOpen, setModalAddEditOpen] = useState(false);
 	const [modalAddEditMode, setModalAddEditMode] = useState("");
 	const [modalAddEditData, setModalAddEditData] = useState(defaultModalData);
+	
+	const {entries, setAllEntries, appendEntry, updateEntry, deleteEntry} = useEntries();
 
 	let onWsMessage = useCallback(event => {
 		let data = JSON.parse(event.data);
-		// console.log(data);
 
 		if (data.type === "insert") {
-			setEntries(prevEntries => [...prevEntries, data.entry]);
+			appendEntry(data.entry);
 		}
 		else if (data.type === "update") {
-			let e2 = data.entry;
-			let updateEntry = e => {
-				if (e.id !== e2.id) {return e;} // no modif
-				return {id: e.id, description: e2.description, number: e2.number, last_modif: e2.last_modif};
-			};
-			setEntries(prevEntries => prevEntries.map(updateEntry));
+			updateEntry(data.entry);
 		}
 		else if (data.type === "delete") {
-			setEntries(prevEntries => prevEntries.filter(e => e.id !== data.id));
+			deleteEntry(data.id);
 		}
 		else if (Array.isArray(data)) {
-			setEntries(data);
+			setAllEntries(data);
 		}
 		else if (data.type === "lock") {
 			if (data.status !== "success") {
@@ -81,7 +77,7 @@ export default function App() {
 				alert(`Unlock request failed:\n${data.msg}`);
 			}
 		}
-	},[]);
+	},[setAllEntries, appendEntry, updateEntry, deleteEntry]);
 
 	const validatedLogin = useMemorization(login, modalLoginOpen);	
 	const [isConnected, sendWsMessage] = useWebSocket(validatedLogin, onWsMessage);
@@ -90,9 +86,9 @@ export default function App() {
 	return (
 		<Root>
 			<Section>
-				<Button iconClass="fas fa-plus"       bDisabled={!isConnected} onClick={addNewEntry}/>
-				<Button iconClass="fas fa-pencil-alt" bDisabled={!isConnected} onClick={updateEntry}/>
-				<Button iconClass="fas fa-minus"      bDisabled={!isConnected} onClick={deleteEntry}/>
+				<Button iconClass="fas fa-plus"       bDisabled={!isConnected} onClick={handleAddEntry}/>
+				<Button iconClass="fas fa-pencil-alt" bDisabled={!isConnected} onClick={handleUpdateEntry}/>
+				<Button iconClass="fas fa-minus"      bDisabled={!isConnected} onClick={handleDeleteEntry}/>
 			</Section>
 			<Main>
 				<Table
@@ -157,13 +153,13 @@ export default function App() {
 		setModalAddEditData(defaultModalData);
 	}
 
-	function addNewEntry() {
+	function handleAddEntry() {
 		setModalAddEditOpen(true);
 		setModalAddEditMode("add");
 		setModalAddEditData(defaultModalData);
 	}
 
-	function updateEntry() {
+	function handleUpdateEntry() {
 		let selectedEntry = entries.find(e => e.id === selectedEntryId);
 		if (!selectedEntry) {return;}
 
@@ -176,7 +172,7 @@ export default function App() {
 		setModalAddEditOpen(true);
 	}
 
-	function deleteEntry() {
+	function handleDeleteEntry() {
 		let selectedEntry = entries.find(e => e.id === selectedEntryId);
 		if (!selectedEntry) {return;}
 
