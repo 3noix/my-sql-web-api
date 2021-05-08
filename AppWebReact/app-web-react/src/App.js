@@ -1,10 +1,11 @@
-import {useState, useEffect, useCallback} from 'react';
+import {useState, useCallback} from 'react';
 import styled from 'styled-components';
 import Button from './Button';
 import Table from './Table';
 import FormLogin from './FormLogin';
 import FormAddEdit from './FormAddEdit';
 import useWebSocket from './useWebSocket';
+import useMemorization from './useMemorization';
 
 
 const Root = styled.div`
@@ -82,12 +83,7 @@ export default function App() {
 		}
 	},[]);
 
-	const [validatedLogin, setValidatedLogin] = useState("");
-	useEffect(() => {
-		if (modalLoginOpen) {return;}
-		setValidatedLogin(login);
-	}, [login,modalLoginOpen]);
-	
+	const validatedLogin = useMemorization(login, modalLoginOpen);	
 	const [isConnected, sendWsMessage] = useWebSocket(validatedLogin, onWsMessage);
 
 
