@@ -2,7 +2,7 @@ import React from 'react';
 import './Table.scss';
 
 
-export default function Table({entries,deselectAllRows,selectRow}) {
+export default function Table({entries,deselectAllRows,selectRow,selectedId}) {
 	return (
 		<table>
 			<thead onClick={deselectAllRows}>
@@ -15,7 +15,7 @@ export default function Table({entries,deselectAllRows,selectRow}) {
 			</thead>
 			<tbody>
 				{entries.map(e => (
-					<tr key={e.id} onClick={() => selectRow(e.id)} className={e.selected ? "selected" : null}>
+					<tr key={e.id} onClick={() => selectRow(e.id)} className={e.id === selectedId ? "selected" : null}>
 						<td>{e.id}</td>
 						<td>{e.description}</td>
 						<td>{e.number}</td>

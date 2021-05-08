@@ -39,6 +39,7 @@ export default function App() {
 	const [login,            setLogin]            = useState("");
 	const [modalLoginOpen,   setModalLoginOpen]   = useState(true);
 	const [entries,          setEntries]          = useState([]);
+	const [selectedEntryId,  setSelectedEntryId]  = useState(-1);
 	const [modalAddEditOpen, setModalAddEditOpen] = useState(false);
 	const [modalAddEditMode, setModalAddEditMode] = useState("");
 	const [modalAddEditData, setModalAddEditData] = useState(defaultModalData);
@@ -48,14 +49,13 @@ export default function App() {
 		// console.log(data);
 
 		if (data.type === "insert") {
-			let newEntry = {...(data.entry), selected: false};
-			setEntries(prevEntries => [...prevEntries, newEntry]);
+			setEntries(prevEntries => [...prevEntries, data.entry]);
 		}
 		else if (data.type === "update") {
 			let e2 = data.entry;
 			let updateEntry = e => {
-				if (e.id !== e2.id) {return e;} // no update
-				return {id: e.id, description: e2.description, number: e2.number, last_modif: e2.last_modif, selected: e.selected};
+				if (e.id !== e2.id) {return e;} // no modif
+				return {id: e.id, description: e2.description, number: e2.number, last_modif: e2.last_modif};
 			};
 			setEntries(prevEntries => prevEntries.map(updateEntry));
 		}
@@ -99,6 +99,7 @@ export default function App() {
 					entries={entries}
 					deselectAllRows={deselectAllRows}
 					selectRow={selectRow}
+					selectedId={selectedEntryId}
 				/>
 			</Main>
 			<FormLogin
@@ -119,13 +120,11 @@ export default function App() {
 
 
 	function selectRow(id) {
-		let selectThisRow = (e => (e.id === id ? {...e, selected: true} : {...e, selected: false}));
-		setEntries(prevEntries => prevEntries.map(selectThisRow));
+		setSelectedEntryId(id);
 	}
 
 	function deselectAllRows() {
-		let deselectEntry = (e => {e.selected = false; return e;});
-		setEntries(prevEntries => prevEntries.map(deselectEntry));
+		setSelectedEntryId(-1);
 	}
 
 	function handleAddEditCancel() {
@@ -165,7 +164,7 @@ export default function App() {
 	}
 
 	function updateEntry() {
-		let selectedEntry = entries.find(e => e.selected);
+		let selectedEntry = entries.find(e => e.id === selectedEntryId);
 		if (!selectedEntry) {return;}
 
 		// lock the entry to update
@@ -178,12 +177,12 @@ export default function App() {
 	}
 
 	function deleteEntry() {
-		let id = entries.find(e => e.selected)?.id;
-		if (!id) {return;}
+		let selectedEntry = entries.find(e => e.id === selectedEntryId);
+		if (!selectedEntry) {return;}
 
 		// lock the entry and send the delete request
-		sendWsMessage(JSON.stringify({rqtType: "lock", rqtData: id}));
-		sendWsMessage(JSON.stringify({rqtType: "delete", rqtData: id}));
+		sendWsMessage(JSON.stringify({rqtType: "lock", rqtData: selectedEntryId}));
+		sendWsMessage(JSON.stringify({rqtType: "delete", rqtData: selectedEntryId}));
 	}
 }
 
