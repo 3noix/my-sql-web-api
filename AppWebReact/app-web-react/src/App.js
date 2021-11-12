@@ -1,4 +1,4 @@
-import {useState, useCallback} from 'react';
+import {useState, useEffect, useCallback} from 'react';
 import styled from 'styled-components';
 import Button from './Button';
 import Table from './Table';
@@ -46,21 +46,22 @@ export default function App() {
 	
 	const {entries, setAllEntries, appendEntry, updateEntry, deleteEntry} = useEntries();
 
-	let onWsMessage = useCallback(event => {
-		let data = JSON.parse(event.data);
 
-		if (data.type === "insert") {
-			appendEntry(data.entry);
-		}
-		else if (data.type === "update") {
-			updateEntry(data.entry);
-		}
-		else if (data.type === "delete") {
-			deleteEntry(data.id);
-		}
-		else if (Array.isArray(data)) {
-			setAllEntries(data);
-		}
+	const validatedLogin = useMemorization(login, modalLoginOpen);
+	const wsConnecCond = (validatedLogin !== null && validatedLogin !== "");
+	const host = (window.location.hostname.length > 0 ? window.location.hostname : "localhost");
+
+	const onWsOpen = useCallback(() => {console.log("connected!");}, []);
+	const onWsError = useCallback(error => {console.log("Error: " + error);}, []);
+	const onWsClose = useCallback(() => {console.log("disconnected!");}, []);
+
+	const onWsMessage = useCallback(dataStr => {
+		let data = JSON.parse(dataStr);
+
+		if (data.type === "insert") {appendEntry(data.entry);}
+		else if (data.type === "update") {updateEntry(data.entry);}
+		else if (data.type === "delete") {deleteEntry(data.id);}
+		else if (Array.isArray(data)) {setAllEntries(data);}
 		else if (data.type === "lock") {
 			if (data.status !== "success") {
 				alert(`Lock request failed:\n${data.msg}`);
@@ -79,8 +80,15 @@ export default function App() {
 		}
 	},[setAllEntries, appendEntry, updateEntry, deleteEntry]);
 
-	const validatedLogin = useMemorization(login, modalLoginOpen);	
-	const [isConnected, sendWsMessage] = useWebSocket(validatedLogin, onWsMessage);
+	const [isConnected, sendWsText, sendWsJson] = useWebSocket(
+		"ws://" + host + ":1234", wsConnecCond,
+		onWsOpen, onWsMessage, onWsError, onWsClose
+	);
+
+	useEffect(() => {
+		if (!isConnected) {return;}
+		sendWsJson({userName: validatedLogin});
+	}, [isConnected,sendWsJson]);
 
 
 	return (
@@ -126,7 +134,7 @@ export default function App() {
 	function handleAddEditCancel() {
 		if (modalAddEditMode === "edit") {
 			// unlock the entry being edited
-			sendWsMessage(JSON.stringify({rqtType: "unlock", rqtData: modalAddEditData.id}));
+			sendWsJson({rqtType: "unlock", rqtData: modalAddEditData.id});
 		}
 
 		// close and reset everything
@@ -141,12 +149,12 @@ export default function App() {
 
 		if (modalAddEditMode === "add") {
 			let data = {description: modalAddEditData.description, number: modalAddEditData.number};
-			sendWsMessage(JSON.stringify({rqtType: "insert", rqtData: data}));
+			sendWsJson({rqtType: "insert", rqtData: data});
 		}
 		else if (modalAddEditMode === "edit") {
 			// update the entry and unlock it
-			sendWsMessage(JSON.stringify({rqtType: "update", rqtData: modalAddEditData}));
-			sendWsMessage(JSON.stringify({rqtType: "unlock", rqtData: modalAddEditData.id}));
+			sendWsJson({rqtType: "update", rqtData: modalAddEditData});
+			sendWsJson({rqtType: "unlock", rqtData: modalAddEditData.id});
 		}
 
 		setModalAddEditMode("");
@@ -164,7 +172,7 @@ export default function App() {
 		if (!selectedEntry) {return;}
 
 		// lock the entry to update
-		sendWsMessage(JSON.stringify({rqtType: "lock", rqtData: selectedEntry.id}));
+		sendWsJson({rqtType: "lock", rqtData: selectedEntry.id});
 		
 		// fill and show the dialog data
 		setModalAddEditMode("edit");
@@ -177,8 +185,8 @@ export default function App() {
 		if (!selectedEntry) {return;}
 
 		// lock the entry and send the delete request
-		sendWsMessage(JSON.stringify({rqtType: "lock", rqtData: selectedEntryId}));
-		sendWsMessage(JSON.stringify({rqtType: "delete", rqtData: selectedEntryId}));
+		sendWsJson({rqtType: "lock", rqtData: selectedEntryId});
+		sendWsJson({rqtType: "delete", rqtData: selectedEntryId});
 	}
 }
 

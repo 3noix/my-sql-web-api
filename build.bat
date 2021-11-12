@@ -1,6 +1,4 @@
 echo off
-echo Setting up environment for Qt 5.11 usage...
-set PATH=E:\Qt\5.11.0\mingw53_32\bin;E:/Qt/Tools/mingw530_32\bin;%PATH%
 echo.
 
 cd %~dp0\WebApi

@@ -1,54 +1,62 @@
-import {useState, useEffect} from 'react';
+import {useState, useRef} from "react"
+import useDeepCompareEffect from "./useDeepCompareEffect"
 
 
-let websocket = null;
-
-
-export default function useWebSocket(validatedUserName, onWsMessage) {
+export default function useWebSocket(url, condition, onWsOpen, onWsMessage, onWsError, onWsClose)
+{
+	const webSocketRef = useRef(null);
 	const [isConnected, setConnected] = useState(false);
 
-	function sendWsMessage(str) {
-		if (websocket == null) {return;}
-		websocket.send(str);
+	function sendWsText(str) {
+		if (webSocketRef.current == null) {return false;}
+		webSocketRef.current.send(str);
+		return true;
 	}
 
-	useEffect(() => {
-		if (validatedUserName == null || validatedUserName === "") {return;}
+	function sendWsJson(json) {
+		return sendWsText(JSON.stringify(json));
+	}
 
-		function onWsOpen(event) {
-			console.log("connected!");
+	useDeepCompareEffect(() => {
+		if (!condition) {return;}
+
+		function onWsOpen2(event) {
 			setConnected(true);
-			websocket.send(JSON.stringify({userName: validatedUserName})); // send the pseudo
+			if (onWsOpen) {onWsOpen();}
 		}
 
-		function onWsError(event) {
-			console.log("Error: " + event.data);
-			alert(`Error:\n${event.data}`);
+		function onWsMessage2(event) {
+			if (onWsMessage) {onWsMessage(event.data);}
 		}
 
-		function onWsClose(event) {
-			console.log("disconnected!");
+		function onWsError2(error) {
+			// if (onWsError) {onWsError(error.data);}
+			if (onWsError) {onWsError(error);}
+		}
+
+		function onWsClose2(event) {
 			setConnected(false);
+			if (onWsClose) {onWsClose();}
 		}
-		
-		// console.log("start connection attempt");
-		let host = (window.location.hostname.length > 0 ? window.location.hostname : "localhost");
-		websocket = new WebSocket("ws://" + host + ":1234");
 
-		websocket.addEventListener("open",    onWsOpen);
-		websocket.addEventListener("close",   onWsClose);
-		websocket.addEventListener("error",   onWsError);
-		websocket.addEventListener("message", onWsMessage);
+		webSocketRef.current = new WebSocket(url);
+		webSocketRef.current.addEventListener("open",    onWsOpen2);
+		webSocketRef.current.addEventListener("message", onWsMessage2);
+		webSocketRef.current.addEventListener("error",   onWsError2);
+		webSocketRef.current.addEventListener("close",   onWsClose2);
 
 		return () => {
-			websocket.close(1000);
-			websocket.removeEventListener("open",    onWsOpen);
-			websocket.removeEventListener("close",   onWsClose);
-			websocket.removeEventListener("error",   onWsError);
-			websocket.removeEventListener("message", onWsMessage);
+			if (webSocketRef.current == null) {return;}
+			webSocketRef.current.close(1000);
+			onWsClose2();
+			webSocketRef.current.removeEventListener("open",    onWsOpen2);
+			webSocketRef.current.removeEventListener("message", onWsMessage2);
+			webSocketRef.current.removeEventListener("error",   onWsError2);
+			webSocketRef.current.removeEventListener("close",   onWsClose2);
+			webSocketRef.current = null;
 		}
-	}, [validatedUserName, onWsMessage]);
+	}, [url, condition, onWsOpen, onWsMessage, onWsError, onWsClose]);
 
-	return [isConnected, sendWsMessage];
+	return [isConnected, sendWsText, sendWsJson];
 }
 
