@@ -4,7 +4,7 @@
 
 #include <QAbstractTableModel>
 #include <vector>
-#include "../../WebApi/CODE/Entry.h"
+#include "../../web-api/src/Entry.h"
 #include "EntryChange.h"
 
 

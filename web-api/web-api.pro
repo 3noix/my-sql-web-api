@@ -7,7 +7,7 @@ CONFIG(release, debug|release) {
 
 
 TEMPLATE = app
-TARGET = WebApi
+TARGET = web-api
 CONFIG += c++17 console
 DESTDIR = ../bin
 OBJECTS_DIR = $$MODE/objects
@@ -15,12 +15,12 @@ MOC_DIR = $$MODE/moc
 QT += sql websockets
 
 
-HEADERS +=  CODE/ApiWebSocketsServer.h \
+HEADERS +=  src/ApiWebSocketsServer.h
 
 
-SOURCES +=  CODE/main.cpp \
-			CODE/SqlConnection.cpp \
-			CODE/ApiWebSocketsServer.cpp \
-			CODE/SqlInterface.cpp \
-			CODE/SqlTransaction.cpp
+SOURCES +=  src/main.cpp \
+			src/SqlConnection.cpp \
+			src/ApiWebSocketsServer.cpp \
+			src/SqlInterface.cpp \
+			src/SqlTransaction.cpp
 

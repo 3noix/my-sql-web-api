@@ -7,7 +7,7 @@ CONFIG(release, debug|release) {
 
 
 TEMPLATE = app
-TARGET = App
+TARGET = app-qt
 CONFIG += c++17
 DESTDIR = ../bin
 OBJECTS_DIR = $$MODE/objects
@@ -15,16 +15,16 @@ MOC_DIR = $$MODE/moc
 QT += widgets websockets
 
 
-HEADERS +=  CODE/MainWindow.h \
-			CODE/EntryDialog.h \
-			CODE/EntryTableModel.h
+HEADERS +=  src/MainWindow.h \
+			src/EntryDialog.h \
+			src/EntryTableModel.h
 
 
-SOURCES +=  CODE/main.cpp \
-			CODE/MainWindow.cpp \
-			CODE/EntryDialog.cpp \
-			CODE/EntryTableModel.cpp \
-			CODE/otherFunctions.cpp
+SOURCES +=  src/main.cpp \
+			src/MainWindow.cpp \
+			src/EntryDialog.cpp \
+			src/EntryTableModel.cpp \
+			src/otherFunctions.cpp
 
 
 RESOURCES += resources.qrc

@@ -1,16 +1,16 @@
 echo off
 echo.
 
-cd %~dp0\WebApi
-echo Building WebApi
+cd %~dp0\web-api
+echo Building web-api
 echo.
 qmake
 mingw32-make release
 cd ..
 echo.
 
-cd App
-echo Building App
+cd app-qt
+echo Building app-qt
 echo.
 qmake
 mingw32-make release
@@ -20,8 +20,8 @@ echo.
 cd bin
 echo Deploying binaries
 echo.
-windeployqt WebApi.exe
-windeployqt App.exe
+windeployqt web-api.exe
+windeployqt app-qt.exe
 copy /Y ..\Database\MySQL-Connector-C-6.1-x86\libmysql.dll .
 cd ..
 echo.

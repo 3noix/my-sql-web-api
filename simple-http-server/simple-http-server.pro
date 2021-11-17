@@ -7,7 +7,7 @@ CONFIG(release, debug|release) {
 
 
 TEMPLATE = app
-TARGET = SimpleHttpServer
+TARGET = simple-http-server
 CONFIG += c++17 console
 DESTDIR = $$MODE
 OBJECTS_DIR = $$MODE/objects

@@ -5,7 +5,7 @@
 #include <QWidget>
 #include <QDateTime>
 #include <QWebSocket>
-#include "../../WebApi/CODE/Entry.h"
+#include "../../web-api/src/Entry.h"
 class QAction;
 class QGridLayout;
 class QToolButton;

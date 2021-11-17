@@ -2,7 +2,7 @@
 #define ENTRY_CHANGE
 
 
-#include "../../WebApi/CODE/Entry.h"
+#include "../../web-api/src/Entry.h"
 
 
 enum class ChangeType
